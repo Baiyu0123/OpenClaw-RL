@@ -225,17 +225,32 @@ Before launching, set these important environment variables as needed:
 | `SAVE_CKPT` | (see script) | Path to the saved HuggingFace checkpoint |
 | `SGLANG_API_KEY` | — | API key for the SGLang serving endpoint |
 
-You can check more details about configurations in `./instructions`.
+You can check more details about configurations in [`./instructions`](./instructions) .
 
 
+## 📖 Citation
 
 ```
-@misc{openclawrl,
+@misc{wang2026openclawrl,
   author       = {Wang, Yinjie and Wang, Mengdi and Yang, Ling},
   title        = {OpenClaw-RL},
   year         = {2026},
   organization = {GitHub},
   url          = {https://github.com/Gen-Verse/OpenClaw-RL},
+}
+
+@article{yu2025demystify,
+  title={Demystifying Reinforcement Learning in Agentic Reasoning},
+  author={Yu, Zhaochen and Yang, Ling and Zou, Jiaru and Yan, Shuicheng and Wang, Mengdi},
+  journal={arXiv preprint arXiv:2510.11701},
+  year={2025}
+}
+
+@article{wang2026rlanything,
+  title={RLAnything: Forge Environment, Policy, and Reward Model in Completely Dynamic RL System},
+  author={Wang, Yinjie and Xie, Tianbao and Shen, Ke and Wang, Mengdi and Yang, Ling},
+  journal={arXiv preprint arXiv:2602.02488},
+  year={2026}
 }
 ```
 
