@@ -250,6 +250,27 @@ class MegatronTrainRayActor(TrainRayActor):
                     )
                 )
             ]
+        if "teacher_topk_log_probs" in rollout_data:
+            rollout_data["teacher_topk_log_probs"] = [
+                torch.tensor(
+                    slice_log_prob_with_cp(
+                        lp,
+                        total_length,
+                        response_length,
+                        self.args.qkv_format,
+                        rollout_data["max_seq_lens"][i] if self.args.qkv_format == "bshd" else None,
+                    ),
+                    dtype=torch.float32,
+                )
+                for i, (lp, total_length, response_length) in enumerate(
+                    zip(
+                        rollout_data["teacher_topk_log_probs"],
+                        rollout_data["total_lengths"],
+                        rollout_data["response_lengths"],
+                        strict=False,
+                    )
+                )
+            ]
         if "teacher_topk_indices" in rollout_data:
             rollout_data["teacher_topk_indices"] = [
                 torch.tensor(

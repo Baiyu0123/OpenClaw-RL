@@ -696,6 +696,9 @@ class RolloutManager:
         if "teacher_log_probs" in samples[0].__dict__:
             train_data["teacher_log_probs"] = [sample.teacher_log_probs for sample in samples]
 
+        if "teacher_topk_log_probs" in samples[0].__dict__:
+            train_data["teacher_topk_log_probs"] = [sample.teacher_topk_log_probs for sample in samples]
+
         if "teacher_topk_indices" in samples[0].__dict__:
             train_data["teacher_topk_indices"] = [sample.teacher_topk_indices for sample in samples]
 
@@ -748,6 +751,7 @@ class RolloutManager:
                 "rollout_routed_experts",
                 "prompt",
                 "teacher_log_probs",
+                "teacher_topk_log_probs",
                 "teacher_topk_indices",
                 "step_wise_step_rewards",
                 "step_wise_step_token_spans",
