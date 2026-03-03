@@ -34,13 +34,13 @@ bash ../openclaw-opd/run_qwen3_4b_openclaw_opd.sh
 
 ## Option B: Top-K Logits Distillation (SDFT/SDPO-style)
 
-Contributed by [@idanshen](https://github.com/idanshen). Instead of single-token teacher targets, distill teacher top-K distribution per position.
+Following [SDFT](https://arxiv.org/abs/2601.19897) and [SDPO](https://arxiv.org/abs/2601.20802), instead of single-token teacher targets, distill teacher top-K distribution per position.
 
 - Teacher query: `input_top_logprobs` (`K` tokens per position).
 - Stored fields: `teacher_topk_log_probs [T,K]`, `teacher_topk_indices [T,K]`.
 - Loss: reverse KL over `K+1` bins (top-K + tail mass):
 
-$$D_{KL}\!\left(\pi_\theta^{K+1}\|\pi_{teacher}^{K+1}\right)=\sum_{k=1}^{K+1}\pi_\theta^{(k)}\left(\log\pi_\theta^{(k)}-\log\pi_{teacher}^{(k)}\right)$$
+$$D_{KL}\left(\pi_\theta^{K+1}\|\pi_{teacher}^{K+1}\right)=\sum_{k=1}^{K+1}\pi_\theta^{(k)}\left(\log\pi_\theta^{(k)}-\log\pi_{teacher}^{(k)}\right)$$
 
 Tail bin uses:
 
