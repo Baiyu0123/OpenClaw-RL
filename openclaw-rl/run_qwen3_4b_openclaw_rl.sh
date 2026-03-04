@@ -11,7 +11,9 @@ pkill -9 python
 
 set -ex
 
-export PYTHONBUFFERED=16
+# keep stdout/stderr unbuffered in ray jobs
+export PYTHONUNBUFFERED=1
+export PYTHONFAULTHANDLER=1
 
 NUM_GPUS=${NUM_GPUS:-8}
 ACTOR_GPUS=${ACTOR_GPUS:-4}
