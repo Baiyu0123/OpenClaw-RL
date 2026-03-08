@@ -47,18 +47,18 @@ export OPENCLAW_RECORD_ENABLED="${OPENCLAW_RECORD_ENABLED:-1}"  # 0=off, 1=on
 export OPENCLAW_RECORD_FILE="${SCRIPT_DIR}/results/qwen3_4b_record.jsonl"
 export TP="2"
 export CONTEXT_LENGTH="32768"
-export MEM_FRACTION_STATIC="0.85"
+export MEM_FRACTION_STATIC="0.8"
 export REASONING_PARSER="qwen3"
 export TOOL_CALL_PARSER="${TOOL_CALL_PARSER:-qwen25}"
-export PRM_M="${PRM_M:-3}"
-export OPENCLAW_OPD_TEACHER_LP_MAX_CONCURRENCY="${OPENCLAW_OPD_TEACHER_LP_MAX_CONCURRENCY:-3}"
+export PRM_M="${PRM_M:-1}"
+export OPENCLAW_OPD_TEACHER_LP_MAX_CONCURRENCY="${OPENCLAW_OPD_TEACHER_LP_MAX_CONCURRENCY:-1}"
 
 CKPT_ARGS=(
    --megatron-to-hf-mode bridge
    --hf-checkpoint "${HF_CKPT}"
    --ref-load "${REF_LOAD}"
    --save "${SAVE_CKPT}"
-   --save-interval 1
+   --save-interval 100
    --rotary-base 5000000
 )
 
@@ -67,7 +67,7 @@ ROLLOUT_ARGS=(
    --rollout-function-path openclaw_opd_rollout.generate_rollout_openclaw_opd
 
    --num-rollout 100000000
-   --rollout-batch-size 32
+   --rollout-batch-size 16
    --n-samples-per-prompt 1
    --rollout-max-response-len 8192
    --rollout-max-context-len 32768
@@ -97,14 +97,14 @@ PERF_ARGS=(
 OPD_ARGS=(
    --advantage-estimator on_policy_distillation
    --use-kl-loss
-   --kl-loss-coef 0.02
+   --kl-loss-coef 0.0
    --kl-loss-type low_var_kl
    --entropy-coef 0.00
 )
 
 OPTIMIZER_ARGS=(
    --optimizer adam
-   --lr 1e-6
+   --lr 1e-5
    --lr-decay-style constant
    --weight-decay 0.1
    --adam-beta1 0.9
@@ -119,7 +119,7 @@ EVAL_ARGS=()
 SGLANG_ARGS=(
    --rollout-num-gpus-per-engine 2
    --sglang-tool-call-parser "${TOOL_CALL_PARSER}"
-   --sglang-mem-fraction-static 0.85
+   --sglang-mem-fraction-static 0.8
    --sglang-context-length 32768
    --sglang-reasoning-parser qwen3
 )
@@ -147,6 +147,22 @@ MISC_ARGS=(
    --attention-backend flash
 )
 
+USE_WANDB=${USE_WANDB:-1}
+WANDB_PROJECT=${WANDB_PROJECT:-openclaw_rl}
+WANDB_KEY_VALUE=${WANDB_KEY:-${WANDB_API_KEY:-}}
+if [ "${USE_WANDB}" = "1" ] && [ -n "${WANDB_KEY_VALUE}" ]; then
+  WANDB_ARGS=(
+    --use-wandb
+    --wandb-project ${WANDB_PROJECT}
+    --wandb-group qwen3-4b-openclaw-opd
+    --wandb-key ${WANDB_KEY_VALUE}
+  )
+else
+  WANDB_ARGS=()
+fi
+
+export OPENCLAW_EVAL_MODE="${OPENCLAW_EVAL_MODE:-1}"
+
 export MASTER_ADDR=${MASTER_ADDR:-"127.0.0.1"}
 export no_proxy="127.0.0.1,${MASTER_ADDR}"
 ray start --head --node-ip-address "${MASTER_ADDR}" --num-gpus "${NUM_GPUS}" --disable-usage-stats --dashboard-host=0.0.0.0 --dashboard-port=8265
@@ -154,7 +170,8 @@ ray start --head --node-ip-address "${MASTER_ADDR}" --num-gpus "${NUM_GPUS}" --d
 RUNTIME_ENV_JSON="{
   \"env_vars\": {
     \"PYTHONPATH\": \"/absolute/path/to/OpenClaw-RL/Megatron-LM/:${SCRIPT_DIR}:${SLIME_ROOT}\",
-    \"CUDA_DEVICE_MAX_CONNECTIONS\": \"1\"
+    \"CUDA_DEVICE_MAX_CONNECTIONS\": \"1\",
+    \"OPENCLAW_EVAL_MODE\": \"${OPENCLAW_EVAL_MODE}\"
   }
 }"
 
@@ -174,5 +191,6 @@ ray job submit --address="http://127.0.0.1:8265" \
    ${EVAL_ARGS[@]} \
    ${SGLANG_ARGS[@]} \
    ${MISC_ARGS[@]} \
+   ${WANDB_ARGS[@]} \
    ${CUSTOM_ARGS[@]} \
    ${PRM_ARGS[@]}
