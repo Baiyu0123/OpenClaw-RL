@@ -72,17 +72,24 @@ def _extract_logprobs_from_chat_response(choice: dict[str, Any]) -> list[float]:
     return [float(item.get("logprob", 0.0)) for item in content if isinstance(item, dict)]
 
 
-def _build_prm_judge_prompt(response_text: str, next_state_text: str) -> list[dict]:
+def _build_prm_judge_prompt(response_text: str, next_state_text: str, next_state_role: str = "user") -> list[dict]:
     system = (
         "You are a process reward model (PRM) evaluating an AI assistant.\n"
-        "You will see the assistant's output and the subsequent user reply or environment feedback.\n"
+        "You will see the assistant's output and the subsequent next state.\n"
         "Your task: decide whether the assistant's output **successfully fulfilled** the user's intent "
         "at that step, using the next state as evidence.\n\n"
+        "## Understanding the next state's role\n"
+        "- role='user': A reply from the user.\n"
+        "- role='tool': The return value of a tool the assistant invoked. "
+        "This content was NOT available before the assistant's action — "
+        "it exists BECAUSE the assistant called the tool. "
+        "A successful, non-error tool output means the assistant's action worked correctly "
+        "and should be scored positively.\n\n"
         "## Scoring rules\n"
-        "- \\boxed{1} (good): The user's next message shows the task progressed as expected — "
-        "e.g. the user moves on to a genuinely new topic, says thanks, or the environment "
-        "confirms success.\n"
-        "- \\boxed{-1} (bad): The user's next message signals the assistant's output was wrong, "
+        "- \\boxed{1} (good): The next state shows the task progressed as expected — "
+        "e.g. the user moves on, says thanks, the environment confirms success, "
+        "or a tool returns a successful, non-error result.\n"
+        "- \\boxed{-1} (bad): The next state signals the assistant's output was wrong, "
         "incomplete, or unwanted. **Key negative signals include:**\n"
         "  * The user asks the assistant to **redo, retry, or repeat** the same action "
         "(\"do it again\", \"try again\", \"one more time\").\n"
@@ -102,7 +109,7 @@ def _build_prm_judge_prompt(response_text: str, next_state_text: str) -> list[di
     )
     user = (
         f"## Assistant output\n{response_text}\n\n"
-        f"## Next state (user reply / environment feedback)\n{next_state_text}\n\n"
+        f"## Next state [role: {next_state_role}]\n{next_state_text}\n\n"
         "First, classify the next state: is it (a) positive progression, "
         "(b) a correction / redo / change request, or (c) ambiguous? "
         "Then assign \\boxed{1}, \\boxed{-1}, or \\boxed{0}."
@@ -213,6 +220,9 @@ class OpenClawAPIServer:
             prm_path = getattr(args, "prm_model_path", None) or args.hf_checkpoint
             self._prm_tokenizer = load_tokenizer(prm_path, trust_remote_code=True)
             logger.info("[OpenClaw] PRM enabled: url=%s m=%d", self._prm_url, self._prm_m)
+
+        self._eval_scores: list[float] = []
+        self._eval_scores_lock = threading.Lock()
 
         self._record_file = os.getenv("OPENCLAW_RECORD_FILE", "") if os.getenv("OPENCLAW_RECORD_ENABLED", "0") == "1" else ""
         if self._record_file:
@@ -337,6 +347,16 @@ class OpenClawAPIServer:
         except OSError as e:
             logger.warning("[OpenClaw] failed to write PRM record: %s", e)
 
+    def drain_eval_scores(self) -> list[float]:
+        with self._eval_scores_lock:
+            scores = list(self._eval_scores)
+            self._eval_scores.clear()
+            return scores
+
+    def reset_eval_scores(self):
+        with self._eval_scores_lock:
+            self._eval_scores.clear()
+
     # ---------------------------------------------------- record purge
     def purge_record_files(self):
         """Clear all record JSONL files. Called when training starts."""
@@ -385,7 +405,8 @@ class OpenClawAPIServer:
     async def _prm_evaluate(self, session_id: str, turn_num: int,
                             response_text: str, next_state) -> dict:
         ns_text = _flatten_message_content(next_state.get("content")) if next_state else ""
-        msgs = _build_prm_judge_prompt(response_text, ns_text)
+        ns_role = next_state.get("role", "user") if next_state else "user"
+        msgs = _build_prm_judge_prompt(response_text, ns_text, ns_role)
         if self._prm_tokenizer:
             judge_prompt = self._prm_tokenizer.apply_chat_template(
                 msgs, tokenize=False, add_generation_prompt=True,
@@ -587,6 +608,9 @@ class OpenClawAPIServer:
             score = prm_result["score"]
         else:
             score = 0.0
+
+        with self._eval_scores_lock:
+            self._eval_scores.append(score)
 
         exclude = not has_next_state or score == 0.0
         # Guarantee at least one sample per session contributes to training.
