@@ -59,7 +59,7 @@ CKPT_ARGS=(
    --hf-checkpoint "${HF_CKPT}"
    --ref-load "${REF_LOAD}"
    --save "${SAVE_CKPT}"
-   --save-interval 1
+   --save-interval 100
    --rotary-base 5000000
 )
 
@@ -68,7 +68,7 @@ ROLLOUT_ARGS=(
    --rollout-function-path openclaw_rollout.generate_rollout_openclaw
 
    --num-rollout 100000000
-   --rollout-batch-size 32
+   --rollout-batch-size 16
    --n-samples-per-prompt 1
    --rollout-max-response-len 8192
    --rollout-max-context-len 32768
@@ -99,7 +99,7 @@ GRPO_ARGS=(
    --advantage-estimator grpo
    --disable-rewards-normalization
    --use-kl-loss
-   --kl-loss-coef 0.02
+   --kl-loss-coef 0.0
    --kl-loss-type low_var_kl
    --entropy-coef 0.00
    --eps-clip 0.2
@@ -108,7 +108,7 @@ GRPO_ARGS=(
 
 OPTIMIZER_ARGS=(
    --optimizer adam
-   --lr 1e-6
+   --lr 1e-5
    --lr-decay-style constant
    --weight-decay 0.1
    --adam-beta1 0.9
@@ -153,6 +153,20 @@ MISC_ARGS=(
    --attention-backend flash
 )
 
+USE_WANDB=${USE_WANDB:-1}
+WANDB_PROJECT=${WANDB_PROJECT:-openclaw_rl}
+WANDB_KEY_VALUE=${WANDB_KEY:-${WANDB_API_KEY:-}}
+if [ "${USE_WANDB}" = "1" ] && [ -n "${WANDB_KEY_VALUE}" ]; then
+  WANDB_ARGS=(
+    --use-wandb
+    --wandb-project ${WANDB_PROJECT}
+    --wandb-group qwen3-4b-openclaw-rl
+    --wandb-key ${WANDB_KEY_VALUE}
+  )
+else
+  WANDB_ARGS=()
+fi
+
 export MASTER_ADDR=${MASTER_ADDR:-"127.0.0.1"}
 export no_proxy="127.0.0.1,${MASTER_ADDR}"
 ray start --head --node-ip-address "${MASTER_ADDR}" --num-gpus "${NUM_GPUS}" --disable-usage-stats --dashboard-host=0.0.0.0 --dashboard-port=8265
@@ -180,6 +194,7 @@ ray job submit --address="http://127.0.0.1:8265" \
    ${EVAL_ARGS[@]} \
    ${SGLANG_ARGS[@]} \
    ${MISC_ARGS[@]} \
+   ${WANDB_ARGS[@]} \
    ${CUSTOM_ARGS[@]} \
    ${PRM_ARGS[@]}
 
