@@ -1,4 +1,5 @@
 import asyncio
+import collections
 import copy
 import json
 import logging
@@ -67,12 +68,20 @@ def _extract_logprobs_from_chat_response(choice: dict[str, Any]) -> list[float]:
     return [float(item.get("logprob", 0.0)) for item in content if isinstance(item, dict)]
 
 
-def _build_hint_judge_messages(response_text: str, next_state_text: str) -> list[dict]:
+def _build_hint_judge_messages(response_text: str, next_state_text: str, next_state_role: str = "user") -> list[dict]:
     system = (
         "You are a process reward model used for hindsight hint extraction.\n"
         "You are given:\n"
         "1) The assistant response at turn t.\n"
-        "2) The next state at turn t+1 (user reply or environment feedback).\n"
+        "2) The next state at turn t+1, along with its **role**.\n\n"
+        "## Understanding the next state's role\n"
+        "- role='user': A reply from the user (follow-up, correction, new request, etc.).\n"
+        "- role='tool': The return value of a tool the assistant invoked. "
+        "This content was NOT available before the assistant's action — "
+        "it exists BECAUSE the assistant called the tool. "
+        "A successful, non-error tool output generally means the assistant's "
+        "action was appropriate; do NOT treat it as information the assistant "
+        "should have already known.\n\n"
         "Your goal is to decide whether the next state reveals useful hindsight information\n"
         "that could have helped improve the assistant response at turn t.\n\n"
         "Output format rules (strict):\n"
@@ -84,7 +93,7 @@ def _build_hint_judge_messages(response_text: str, next_state_text: str) -> list
     )
     user = (
         f"## Assistant response (turn t)\n{response_text}\n\n"
-        f"## Next state (turn t+1)\n{next_state_text}\n\n"
+        f"## Next state (turn t+1) [role: {next_state_role}]\n{next_state_text}\n\n"
         "Now output your decision and (if positive) the hint in the required format."
     )
     return [{"role": "system", "content": system}, {"role": "user", "content": user}]
@@ -127,6 +136,72 @@ def _append_hint_to_messages(messages: list[dict], hint: str) -> list[dict]:
     suffix = f"\n\n[user's hint / instruction]\n{hint.strip()}"
     cloned[target_idx]["content"] = (content + suffix).strip()
     return cloned
+
+
+def _build_prm_eval_prompt(response_text: str, next_state_text: str, next_state_role: str = "user") -> list[dict]:
+    system = (
+        "You are a process reward model (PRM) evaluating an AI assistant.\n"
+        "You will see the assistant's output and the subsequent next state.\n"
+        "Your task: decide whether the assistant's output **successfully fulfilled** the user's intent "
+        "at that step, using the next state as evidence.\n\n"
+        "## Understanding the next state's role\n"
+        "- role='user': A reply from the user.\n"
+        "- role='tool': The return value of a tool the assistant invoked. "
+        "This content was NOT available before the assistant's action — "
+        "it exists BECAUSE the assistant called the tool. "
+        "A successful, non-error tool output means the assistant's action worked correctly "
+        "and should be scored positively.\n\n"
+        "## Scoring rules\n"
+        "- \\boxed{1} (good): The next state shows the task progressed as expected — "
+        "e.g. the user moves on, says thanks, the environment confirms success, "
+        "or a tool returns a successful, non-error result.\n"
+        "- \\boxed{-1} (bad): The next state signals the assistant's output was wrong, "
+        "incomplete, or unwanted. **Key negative signals include:**\n"
+        "  * The user asks the assistant to **redo, retry, or repeat** the same action "
+        "(\"do it again\", \"try again\", \"one more time\").\n"
+        "  * The user requests a **correction or modification** to what the assistant just did "
+        "(\"change X to Y\", \"no, I meant …\", \"not that, …\", \"please fix …\").\n"
+        "  * The user **rephrases or restates** the same request, implying the assistant "
+        "did not understand or execute it correctly.\n"
+        "  * The environment returns an **error, failure, or unexpected result** caused "
+        "by the assistant's action.\n"
+        "- \\boxed{0} (neutral): The next state is ambiguous — e.g. the user gives an "
+        "unrelated follow-up that neither confirms nor denies success, or there is "
+        "insufficient information to judge.\n\n"
+        "## Important\n"
+        "A change request IS negative feedback — it means the previous output did not "
+        "meet the user's need. Do NOT treat it as a neutral new instruction.\n\n"
+        "Think step-by-step, then give your final score inside \\boxed{}."
+    )
+    user = (
+        f"## Assistant output\n{response_text}\n\n"
+        f"## Next state [role: {next_state_role}]\n{next_state_text}\n\n"
+        "First, classify the next state: is it (a) positive progression, "
+        "(b) a correction / redo / change request, or (c) ambiguous? "
+        "Then assign \\boxed{1}, \\boxed{-1}, or \\boxed{0}."
+    )
+    return [{"role": "system", "content": system}, {"role": "user", "content": user}]
+
+
+def _parse_prm_eval_score(text: str) -> int | None:
+    matches = _BOXED_RE.findall(text)
+    if not matches:
+        return None
+    val = int(matches[-1])
+    if val in (1, -1, 0):
+        return val
+    return None
+
+
+def _prm_eval_majority_vote(scores: list[int | None]) -> float:
+    valid = [s for s in scores if s is not None]
+    if not valid:
+        return 0.0
+    counter = collections.Counter(valid)
+    top = counter.most_common(1)[0]
+    if list(counter.values()).count(top[1]) > 1:
+        return 0.0
+    return float(top[0])
 
 
 async def reward_func(args, sample_or_samples, **kwargs):
@@ -219,6 +294,12 @@ class OpenClawOPDAPIServer:
             os.makedirs(os.path.dirname(self._prm_record_file), exist_ok=True)
             open(self._prm_record_file, "w").close()
             logger.info("[OpenClaw-OPD] PRM record file initialized (cleared): %s", self._prm_record_file)
+
+        self._eval_mode = os.getenv("OPENCLAW_EVAL_MODE", "0") == "1"
+        self._eval_scores: list[float] = []
+        self._eval_scores_lock = threading.Lock()
+        if self._eval_mode:
+            logger.info("[OpenClaw-OPD] eval mode enabled: will compute RL-style PRM scores")
 
         self._server: uvicorn.Server | None = None
         self._thread: threading.Thread | None = None
@@ -345,6 +426,35 @@ class OpenClawOPDAPIServer:
             logger.warning("[OpenClaw-OPD] judge query failed (vote %d): %s", vote_id, e)
             return {"vote_id": vote_id, "score": None, "hint": "", "raw": ""}
 
+    async def _query_prm_eval_once(self, prompt_text: str, vote_id: int) -> int | None:
+        if not self._prm_url:
+            return None
+        payload = {
+            "text": prompt_text,
+            "sampling_params": {
+                "temperature": self._prm_temperature,
+                "top_p": 1.0,
+                "top_k": -1,
+                "max_new_tokens": self._prm_max_tokens,
+                "skip_special_tokens": False,
+                "no_stop_trim": True,
+                "spaces_between_special_tokens": False,
+            },
+            "return_logprob": False,
+        }
+        try:
+            async with httpx.AsyncClient(timeout=None) as client:
+                resp = await client.post(self._prm_url, json=payload)
+                resp.raise_for_status()
+                data = resp.json()
+            raw = data.get("text", data) if isinstance(data, dict) else str(data)
+            if isinstance(raw, list):
+                raw = raw[0] if raw else ""
+            return _parse_prm_eval_score(str(raw))
+        except Exception as e:
+            logger.warning("[OpenClaw-OPD] PRM eval query failed (vote %d): %s", vote_id, e)
+            return None
+
     async def _compute_teacher_log_probs(self, input_ids: list[int], response_len: int) -> list[float]:
         start_len = max(0, len(input_ids) - response_len)
         payload = {
@@ -457,13 +567,37 @@ class OpenClawOPDAPIServer:
 
     async def _opd_evaluate(self, session_id: str, turn_num: int, turn_data: dict[str, Any], next_state: dict[str, Any]) -> dict[str, Any]:
         next_state_text = _flatten_message_content(next_state.get("content")) if next_state else ""
-        judge_msgs = _build_hint_judge_messages(turn_data["response_text"], next_state_text)
+        next_state_role = next_state.get("role", "user") if next_state else "user"
+        judge_msgs = _build_hint_judge_messages(turn_data["response_text"], next_state_text, next_state_role)
         if self._prm_tokenizer:
             judge_prompt = self._prm_tokenizer.apply_chat_template(judge_msgs, tokenize=False, add_generation_prompt=True)
         else:
             judge_prompt = "\n".join(m["content"] for m in judge_msgs)
 
         votes = await asyncio.gather(*[self._query_judge_once(judge_prompt, i) for i in range(self._prm_m)])
+
+        if self._eval_mode:
+            eval_msgs = _build_prm_eval_prompt(turn_data["response_text"], next_state_text, next_state_role)
+            if self._prm_tokenizer:
+                eval_prompt = self._prm_tokenizer.apply_chat_template(
+                    eval_msgs, tokenize=False, add_generation_prompt=True,
+                )
+            else:
+                eval_prompt = "\n".join(m["content"] for m in eval_msgs)
+            async with self._teacher_lp_semaphore:
+                eval_raw = await asyncio.gather(
+                    *[self._query_prm_eval_once(eval_prompt, i) for i in range(self._prm_m)]
+                )
+            eval_score = _prm_eval_majority_vote(eval_raw)
+            logger.info(
+                "%s[OpenClaw-OPD] PRM eval session=%s turn=%d eval_votes=%s → eval_score=%.1f%s",
+                _CYAN, session_id, turn_num,
+                [s if s is not None else "fail" for s in eval_raw],
+                eval_score, _RESET,
+            )
+        else:
+            eval_score = None
+
         selected = _select_best_hint(votes)
         votes_display = [v.get("score", "fail") for v in votes]
 
@@ -485,7 +619,7 @@ class OpenClawOPDAPIServer:
                     "votes": votes,
                 }
             )
-            return {"accepted": False, "teacher_log_probs": None, "hint": "", "votes": votes}
+            return {"accepted": False, "teacher_log_probs": None, "hint": "", "votes": votes, "eval_score": eval_score}
 
         hint = selected["hint"].strip()
         enhanced_messages = _append_hint_to_messages(turn_data["messages"], hint)
@@ -507,6 +641,7 @@ class OpenClawOPDAPIServer:
             "teacher_log_probs": teacher_log_probs,
             "hint": hint,
             "votes": votes,
+            "eval_score": eval_score,
         }
 
         if self._use_topk_distillation:
@@ -677,6 +812,9 @@ class OpenClawOPDAPIServer:
             if task is None:
                 if force_drop_without_next_state:
                     pending.pop(turn_num, None)
+                    if self._eval_mode:
+                        with self._eval_scores_lock:
+                            self._eval_scores.append(0.0)
                     logger.info(
                         "[OpenClaw-OPD] dropped session=%s turn=%d (no next_state -> no hint teacher)",
                         session_id,
@@ -692,7 +830,16 @@ class OpenClawOPDAPIServer:
                 opd_result = task.result()
             except Exception as e:
                 logger.warning("[OpenClaw-OPD] opd task failed session=%s turn=%d: %s", session_id, turn_num, e)
+                if self._eval_mode:
+                    with self._eval_scores_lock:
+                        self._eval_scores.append(0.0)
                 continue
+
+            if self._eval_mode:
+                es = opd_result.get("eval_score")
+                if es is not None:
+                    with self._eval_scores_lock:
+                        self._eval_scores.append(es)
 
             if not opd_result.get("accepted"):
                 continue
@@ -745,6 +892,16 @@ class OpenClawOPDAPIServer:
             len(opd_result.get("hint", "")),
         )
         await asyncio.to_thread(self.output_queue.put, (sample.group_index, [sample]))
+
+    def drain_eval_scores(self) -> list[float]:
+        with self._eval_scores_lock:
+            scores = list(self._eval_scores)
+            self._eval_scores.clear()
+            return scores
+
+    def reset_eval_scores(self):
+        with self._eval_scores_lock:
+            self._eval_scores.clear()
 
     def purge_record_files(self):
         for path, label in [
