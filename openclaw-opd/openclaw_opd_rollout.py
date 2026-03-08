@@ -5,6 +5,7 @@ import threading
 import time
 
 from openclaw_opd_api_server import OpenClawOPDAPIServer
+from slime.rollout.base_types import RolloutFnTrainOutput
 from slime.rollout.sglang_rollout import eval_rollout
 from slime.utils.async_utils import run
 from slime.utils.types import Sample
@@ -136,10 +137,22 @@ def generate_rollout_openclaw_opd(args, rollout_id, data_buffer, evaluation=Fals
         eval_output, _ = run(eval_rollout(args, rollout_id))
         return eval_output
 
+    worker._server.reset_eval_scores()
     worker.resume_submission()
     completed_samples = run(_drain_output_queue(args, worker))
     worker.pause_submission()
-    return completed_samples
+
+    extra_metrics = None
+    eval_scores = worker._server.drain_eval_scores()
+    if eval_scores:
+        extra_metrics = {"rollout/prm_eval_score": sum(eval_scores) / len(eval_scores)}
+        print(
+            f"[OpenClawOPDWorker] prm_eval_score={extra_metrics['rollout/prm_eval_score']:.4f} "
+            f"(n={len(eval_scores)})",
+            flush=True,
+        )
+
+    return RolloutFnTrainOutput(samples=completed_samples, metrics=extra_metrics)
 
 
 atexit.register(stop_global_worker)
