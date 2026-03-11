@@ -18,6 +18,7 @@
   <img src="https://img.shields.io/badge/🛠️_Auto_Optimization-orange?style=for-the-badge" alt="Auto" />
   <img src="https://img.shields.io/badge/💬_Language_Feedback-purple?style=for-the-badge" alt="Language Feedback" />
   <br><br>
+  <a href="./OpenClaw_RL.pdf"><img src="https://img.shields.io/badge/📄_Tech_Report-red?style=flat-square" alt="Tech Report" /></a>
   <a href="https://yinjjiew.github.io/projects/openclawrl"><img src="https://img.shields.io/badge/Blog-Page-blue?style=flat-square" alt="OpenClaw-RL Blog" /></a>
   <a href="https://openclaw.ai"><img src="https://img.shields.io/badge/OpenClaw-Plugin-orange?style=flat-square" alt="OpenClaw Plugin" /></a>
   <a href="https://github.com/THUDM/slime"><img src="https://img.shields.io/badge/Slime-Based-purple?style=flat-square" alt="Slime Based" /></a>
@@ -38,7 +39,7 @@
 
 ## 📰 News
 
-- **[2026/3/10]** 🔥 We have released our [technique report](./pdf)!
+- **[2026/3/10]** 🔥 We have released our [technique report](./OpenClaw_RL.pdf)!
 - **[2026/3/10]** 🔥 Huge updates today! We will release a new method, along with an interesting evaluation of these OpenClaw-RL methods. Track 2 will also be released, featuring scalable RL implementations for general agent settings across terminal, GUI, SWE, and tool-call scenarios. We focus on real-world settings!
 - **[2026/3/3]** 🙌 Working with the authors of [SDFT](https://arxiv.org/abs/2601.19897) and [SDPO](https://arxiv.org/abs/2601.20802), we have integrated their methods into [openclaw-opd](./openclaw-opd). We welcome the integration of novel and effective methods!
 - **[2026/3/3]** 📺 Check out these community tutorial videos on OpenClaw-RL: [**Video 1**](https://www.youtube.com/watch?v=5xnm1vB7G64) | [**Video 2**](https://www.youtube.com/watch?v=ZtN6Gg_bdJE)
