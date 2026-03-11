@@ -65,31 +65,31 @@ Most RL-for-LLM systems assume centralized, batch-mode training with pre-collect
 <summary><b>🌈 Features</b></summary>
 
 ### Fully Asynchronous 4-Component Architecture
-OpenClaw-RL decouples **agent serving**, **rollout collection**, **PRM judging**, and **policy training** into independent async loops. None of them block one another — the model serves requests while training runs in the background, and PRM evaluation happens concurrently with new conversations.
+OpenClaw-RL decouples **agent serving**, **rollout collection**, **PRM/judge evaluation**, and **policy training** into independent async loops. None of them block one another: the model continues serving requests while training runs in the background, and judging happens concurrently with new interactions.
 
 ### Self-Hosted & Private by Design
-The entire stack (model, PRM, training) runs on **your own infrastructure**. Conversation data never leaves your system. No external API keys required.
+The entire stack, including the **policy model**, **judge/PRM**, and **trainer**, runs on **your own infrastructure**. Conversation data stays within your system, and no third-party model API is required.
 
-### From Conversation to Gradient — Automatically
-You don't need to manually label data. The system automatically:
+### From Feedback to Gradient — Automatically
+You do not need to manually label data. The system automatically:
+- Organizes multi-turn interactions into session-aware training trajectories
 - Classifies API messages into **main-line** (trainable) vs. **side** (non-trainable) turns
-- Uses the next user/environment message as a natural "next state" signal
-- Runs PRM evaluation asynchronously with majority voting for robust scoring
+- Uses the next user, environment, or tool feedback as a natural "next-state" signal
+- Runs PRM/judge evaluation asynchronously, with majority voting when needed for more robust scoring
 - Submits ready samples to the trainer as they become available
 
-### Two Learning Paradigms in One Framework
+### Three Optimization Methods in One Framework
 
-**Binary RL (GRPO):** A Process Reward Model scores each turn as good/bad/neutral based on the next-state feedback. The scalar reward is used with GRPO advantage estimation and PPO-style clipped surrogate loss.
+**Binary RL (GRPO):** A Process Reward Model scores each turn based on next-state feedback. The scalar reward is then used with GRPO advantage estimation and a PPO-style clipped surrogate loss.
 
-**On-Policy Distillation (OPD):** When the next state reveals useful hindsight, a judge model extracts a textual hint. This hint augments the original prompt to create an "enhanced teacher," whose token-level log-probability gap with the student becomes a directional advantage signal — richer than any scalar reward.
+**On-Policy Distillation (OPD):** When the next state reveals useful hindsight, a judge model extracts a textual hint. This hint augments the original prompt to create an enhanced teacher, whose token-level log-probability gap with the student becomes a directional advantage signal richer than any scalar reward.
 
-### Production-Ready Engineering
-- **Session-aware training:** Multi-turn conversations are tracked per-session with proper turn ordering
-- **Graceful weight updates:** Submission pauses during model updates, then resumes — no data corruption
-- **At-least-one guarantee (Binary RL):** Every session contributes at least one effective training sample
-- **Hint quality filtering (OPD):** Only the longest, most informative hint among `m` votes is selected; trivial hints are discarded
-- **Teacher log-prob optimization (OPD):** Only response-suffix log-probs are computed to reduce peak memory
-- **Record & debug:** All conversations and PRM evaluations are logged to JSONL for analysis
+**Combination Method:** OpenClaw-RL further combines Binary RL and OPD in a unified training recipe, leveraging the dense scalar supervision of Binary RL together with the richer token-level directional signal from OPD. This combination achieves stronger and more robust optimization than either method alone.
+
+### From Personal Agents to Real-World Agentic RL
+The same framework supports both personalized OpenClaw optimization and scalable RL for **terminal**, **GUI**, **SWE**, and **tool-call** agents in real-world settings.
+
+
 
 </details>
 
@@ -326,8 +326,8 @@ See [`./openclaw-test/README.md`](./openclaw-test/README.md) for setup and algor
 
 Install OpenClaw from the version bundled in this repository (we will update it regularly):
 
-details>
-<summary><b>Then configure OpenClaw to route requests to your RL server. </summary>
+<details>
+<summary><b>Then configure OpenClaw to route requests to your RL server. </b></summary>
 
 Open your `openclaw.json` (or the equivalent settings file) and add a provider entry under `"models"` → `"providers"`:
 
