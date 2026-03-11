@@ -387,8 +387,10 @@ You can check more details about configurations in [`./instructions`](./instruct
 
 ---
 
-<a id="generalagent"></a>
-## 🔧 General Agent Optimization Quick Start
+<a id="agentrl"></a>
+## 🔧 Agentic RL in Real-world Settings
+
+The same asynchronous RL backbone that powers our personal-agent setting can also support large-scale optimization for these broader real-world environments.
 
 | Setting | Environment | Next-state signal | Horizon |
 |---|---|---|---|
