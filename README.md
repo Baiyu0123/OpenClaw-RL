@@ -192,6 +192,13 @@ where `<HOST_IP>` is the **IP address** of the machine running the RL server (e.
 
 **Take note of this endpoint** — you will need it when configuring OpenClaw in the next step.
 
+We also provide an interesting case for evaluation. A student who uses OpenClaw to do homework, does not want to be found using AI. A teacher who also uses OpenClaw to grade student's homework, wants the comments to be specific and friendly.
+
+<details>
+<summary><b>Eval Setting</b> — Both student and teacher use AI!</summary>
+
+See [`./openclaw-test/README.md`](./openclaw-test/README.md) for setup and algorithm details.
+</details>
 
 
 ### 3. OpenClaw Setup
