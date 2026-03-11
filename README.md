@@ -141,6 +141,21 @@ We provide three methods (RL servers):
 
 Choose your optimization method:
 
+
+<details>
+<summary><b>Option A: Combination Method</b> — Recommended !</summary>
+
+```bash
+cd slime
+bash ../openclaw-combine/run_qwen3_4b_openclaw_combine.sh
+```
+
+This method combines binary RL and OPD to achieve the best optimization.
+
+See [`./openclaw-combine/README.md`](./openclaw-combine/README.md) for algorithm details.
+</details>
+
+
 <details>
 <summary><b>Option A: Binary RL</b> — Best for implicit feedback (likes/dislikes, env success/failure)</summary>
 
