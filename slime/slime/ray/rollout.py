@@ -690,7 +690,21 @@ class RolloutManager:
         if samples[0].train_metadata is not None:
             train_data["metadata"] = [sample.train_metadata for sample in samples]
 
-        if samples[0].multimodal_train_inputs is not None:
+        has_any_mm = any(s.multimodal_train_inputs is not None for s in samples)
+        if has_any_mm:
+            missing_mm_indices = []
+            for i, sample in enumerate(samples):
+                if sample.multimodal_train_inputs is None and not sample.remove_sample:
+                    sample.remove_sample = True
+                    sample.loss_mask = [0] * sample.response_length
+                    loss_masks[i] = sample.loss_mask
+                    missing_mm_indices.append(sample.index)
+            if missing_mm_indices:
+                logger.warning(
+                    "Dropped %d samples with missing multimodal_train_inputs: indices=%s",
+                    len(missing_mm_indices),
+                    missing_mm_indices[:20],
+                )
             train_data["multimodal_train_inputs"] = [sample.multimodal_train_inputs for sample in samples]
 
         if "teacher_log_probs" in samples[0].__dict__:
