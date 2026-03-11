@@ -157,7 +157,7 @@ See [`./openclaw-combine/README.md`](./openclaw-combine/README.md) for algorithm
 
 
 <details>
-<summary><b>Option A: Binary RL</b> — Best for implicit feedback (likes/dislikes, env success/failure)</summary>
+<summary><b>Option B: Binary RL</b> — Best for implicit feedback (likes/dislikes, env success/failure)</summary>
 
 ```bash
 cd slime
@@ -170,7 +170,7 @@ See [`./openclaw-rl/README.md`](./openclaw-rl/README.md) for algorithm details.
 </details>
 
 <details>
-<summary><b>Option B: On-Policy Distillation (OPD)</b> — Best for rich textual feedback</summary>
+<summary><b>Option C: On-Policy Distillation (OPD)</b> — Best for rich textual feedback</summary>
 
 ```bash
 cd slime
@@ -256,18 +256,11 @@ You can check more details about configurations in [`./instructions`](./instruct
 
 ```
 @misc{wang2026openclawrl,
-  author       = {Wang, Yinjie and Wang, Mengdi and Yang, Ling},
+  author       = {Wang, Yinjie and Chen, Xuyang and Jin, Xiaolong and Wang, Mengdi and Yang, Ling},
   title        = {OpenClaw-RL},
   year         = {2026},
   organization = {GitHub},
   url          = {https://github.com/Gen-Verse/OpenClaw-RL},
-}
-
-@article{yu2025demystify,
-  title={Demystifying Reinforcement Learning in Agentic Reasoning},
-  author={Yu, Zhaochen and Yang, Ling and Zou, Jiaru and Yan, Shuicheng and Wang, Mengdi},
-  journal={arXiv preprint arXiv:2510.11701},
-  year={2025}
 }
 
 @article{wang2026rlanything,
@@ -275,6 +268,13 @@ You can check more details about configurations in [`./instructions`](./instruct
   author={Wang, Yinjie and Xie, Tianbao and Shen, Ke and Wang, Mengdi and Yang, Ling},
   journal={arXiv preprint arXiv:2602.02488},
   year={2026}
+}
+
+@article{yu2025demystify,
+  title={Demystifying Reinforcement Learning in Agentic Reasoning},
+  author={Yu, Zhaochen and Yang, Ling and Zou, Jiaru and Yan, Shuicheng and Wang, Mengdi},
+  journal={arXiv preprint arXiv:2510.11701},
+  year={2025}
 }
 ```
 
