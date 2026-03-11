@@ -94,13 +94,14 @@ You don't need to manually label data. The system automatically:
 Our long-term goal is to **advance personalized, practically useful agents with reinforcement learning**. The roadmap has two tracks:
 
 #### Track 1 — Personal Agent Optimization (Small-Scale but Personal)
-✅ **Release v1:** Fully async OpenClaw-RL framework with Binary RL + OPD  
+✅ **Release Track 1:** Fully async OpenClaw-RL framework with Binary RL + OPD  
+✅ Best recipe discovery via demonstration experiments  
 ⬜ Broader model family support & more efficient serving  
-⬜ Best recipe discovery via large-scale experiments  
 ⬜ Beyond the policy: extend learning to skills and memory  
 
 #### Track 2 — General Agents Optimization (Scalable Infra)
-⬜ **Next (2–3 weeks):** Scalable agentic RL infra for general agents (computer-use first)
+✅ **Release Track 2:** Scalable agentic RL infra for general agents 
+⬜ Support more cloud services
 
 ---
 
@@ -125,12 +126,16 @@ For detailed environment setup, see [Slime](https://github.com/THUDM/slime) or [
 
 ### 2. Start the RL Server
 
-We provide two methods (RL servers):
+We provide three methods (RL servers):
 
-| Method | Signal Type | How It Works | When to Use |
+| Dimension | [Binary RL](./openclaw-rl/) | [OPD](./openclaw-opd) | [Combined](./openclaw-combine) |
 |---|---|---|---|
-| **[Binary RL](./openclaw-rl/)** | Scalar (+1/−1/0) | PRM judges response quality from next-state feedback via majority vote → GRPO | Abundant implicit feedback (likes, env success/failure) |
-| **[On-Policy Distillation (OPD)](./openclaw-opd/)** | Token-level directional | Extract hindsight hints from next-state → construct enhanced teacher → token-level distillation | Rich textual feedback; need directional improvement |
+| Signal type | Evaluative (good / bad) | Directional | Evaluative + directional |
+| Advantage | Sequence-level scalar | Token-level directional | Mixed sequence and token-level |
+| Density | All scored turns | Hint-accepted turns only | All scored turns |
+| Feedback type | User / environment | Explicit corrections | Both implicit and explicit feedback |
+| Signal richness | 1 scalar per sample | 1 value per token | 1 value per token |
+
 
 
 Choose your optimization method:
