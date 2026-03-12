@@ -318,6 +318,12 @@ We also provide an interesting case for evaluation. A student who uses OpenClaw 
 <details>
 <summary><b>Eval Setting</b> — Both student and teacher use AI!</summary>
 
+We find that, under the combined optimization method, OpenClaw needs only 36 problem-solving interactions in the student setting and 24 grading interactions in the teacher setting to achieve a significant and clearly visible improvement.
+
+<p align="center">
+  <img src="assets/openclawrl1performance.png"  alt="Overview"  width="750">
+</p>
+
 See [`./openclaw-test/README.md`](./openclaw-test/README.md) for setup and algorithm details.
 </details>
 
@@ -434,7 +440,7 @@ bash ../swe-rl/run_swe_rl_32b_remote_8nodes.sh
 See [`./swe-rl/README.md`](./swe-rl/README.md) for setup details.
 
 <a id="toolcall"></a>
-### 🛠️ Tool-call Agent — the most practical API-using agent
+### 🛠️ Tool-call Agent — the most practical agent
 
 ```bash
 cd slime
