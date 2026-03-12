@@ -107,8 +107,8 @@ Our long-term goal is to **advance personalized, practically useful agents with 
 #### Track 1 — [Personal Agent Optimization](#personalagent) (Small-Scale but Personal)
 ✅ **Release Track 1:** Fully async OpenClaw-RL framework with Binary RL + OPD  
 ✅ Best recipe discovery via demonstration experiments  
-✅ Support LoRA Training
-⬜ Support low-precision training/inference
+✅ Support LoRA Training  
+⬜ Support low-precision training/inference  
 ⬜ Deploy training on [Tinker](https://thinkingmachines.ai/tinker/)  
 ⬜ Beyond the policy: extend learning to skills and memory  
 
@@ -348,7 +348,7 @@ We also provide an interesting case for evaluation. A student who uses OpenClaw 
 
 <a id="evalmethod"></a>
 <details>
-<summary><b>Eval Setting</b> — Both student and teacher use AI!</summary>
+<summary><b>Evaluation Setting</b> — Both student and teacher use AI!</summary>
 
 We find that, under the combined optimization method, OpenClaw needs only 36 problem-solving interactions in the student setting and 24 grading interactions in the teacher setting to achieve a significant and clearly visible improvement.
 
