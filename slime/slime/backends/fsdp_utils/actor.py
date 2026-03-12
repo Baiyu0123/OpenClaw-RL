@@ -589,11 +589,13 @@ class FSDPTrainRayActor(TrainRayActor):
         logits = self.model(**model_args).logits.squeeze(0).float()
 
         # Compute log probs and entropy
+        need_entropy = self.args.entropy_coef != 0.0
         log_probs, entropy_result = get_logprob_and_entropy(
             logits=logits,
             target_tokens=packed_batch["tokens"],
             allow_compile=not self.args.true_on_policy_mode,
             temperature=self.args.rollout_temperature,
+            compute_entropy=need_entropy,
         )
         packed_batch["cur_log_probs"] = log_probs
         packed_batch["entropy"] = entropy_result
@@ -909,6 +911,7 @@ def get_logprob_and_entropy(
     target_tokens: torch.Tensor,
     allow_compile: bool,
     temperature: float | None = None,
+    compute_entropy: bool = True,
 ) -> tuple[torch.Tensor, torch.Tensor]:
     """Compute log probabilities and entropy.
 
@@ -917,6 +920,8 @@ def get_logprob_and_entropy(
         target_tokens: Target tokens with shape [seq_len]
         allow_compile: Whether to allow compilation
         temperature: Temperature parameter (optional)
+        compute_entropy: If False, skip the expensive full-vocab softmax and
+            return zeros for entropy. Saves ~3x [seq_len, vocab_size] memory.
 
     Returns:
         log_probs: Log probabilities with shape [seq_len - 1]
@@ -926,9 +931,12 @@ def get_logprob_and_entropy(
     log_probs = gather_log_probs_packed(
         shifted_logits, target_tokens, allow_compile=allow_compile, temperature=temperature
     )
-    log_probs_full = torch.log_softmax(shifted_logits, dim=-1)
-    probs = torch.softmax(shifted_logits, dim=-1)
-    entropy = -(probs * log_probs_full).sum(dim=-1)
+    if compute_entropy:
+        log_probs_full = torch.log_softmax(shifted_logits, dim=-1)
+        probs = torch.softmax(shifted_logits, dim=-1)
+        entropy = -(probs * log_probs_full).sum(dim=-1)
+    else:
+        entropy = torch.zeros_like(log_probs)
     return log_probs, entropy
 
 
