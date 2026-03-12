@@ -463,12 +463,11 @@ See [`./toolcall-rl/README.md`](./toolcall-rl/README.md) for setup details.
 ## 📖 Citation
 
 ```
-@misc{wang2026openclawrl,
-  author       = {Wang, Yinjie and Chen, Xuyang and Jin, Xiaolong and Wang, Mengdi and Yang, Ling},
-  title        = {OpenClaw-RL},
-  year         = {2026},
-  organization = {GitHub},
-  url          = {https://github.com/Gen-Verse/OpenClaw-RL},
+@article{wang2026openclawrl,
+  title={OpenClaw-RL: Train Any Agent Simply by Talking},
+  author={Wang, Yinjie and Chen, Xuyang and Jin, Xiaolong and Wang, Mengdi and Yang, Ling},
+  journal={arXiv preprint arXiv:2603.10165},
+  year={2026}
 }
 
 @article{wang2026rlanything,
@@ -476,13 +475,6 @@ See [`./toolcall-rl/README.md`](./toolcall-rl/README.md) for setup details.
   author={Wang, Yinjie and Xie, Tianbao and Shen, Ke and Wang, Mengdi and Yang, Ling},
   journal={arXiv preprint arXiv:2602.02488},
   year={2026}
-}
-
-@article{yu2025demystify,
-  title={Demystifying Reinforcement Learning in Agentic Reasoning},
-  author={Yu, Zhaochen and Yang, Ling and Zou, Jiaru and Yan, Shuicheng and Wang, Mengdi},
-  journal={arXiv preprint arXiv:2510.11701},
-  year={2025}
 }
 ```
 
