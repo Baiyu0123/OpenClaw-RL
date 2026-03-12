@@ -19,7 +19,7 @@
   <img src="https://img.shields.io/badge/🛠️_Auto_Optimization-orange?style=for-the-badge" alt="Auto" />
   <img src="https://img.shields.io/badge/💬_Language_Feedback-purple?style=for-the-badge" alt="Language Feedback" />
   <br><br>
-  <a href="./pdf/OpenClaw_RL.pdf"><img src="https://img.shields.io/badge/📄_Tech_Report-red?style=flat-square" alt="Tech Report" /></a>
+  <a href="https://arxiv.org/abs/2603.10165"><img src="https://img.shields.io/badge/📄_Tech_Report-red?style=flat-square" alt="Tech Report" /></a>
   <a href="https://yinjjiew.github.io/projects/openclawrl1"><img src="https://img.shields.io/badge/Blog-Page-blue?style=flat-square" alt="OpenClaw-RL Blog" /></a>
   <a href="https://openclaw.ai"><img src="https://img.shields.io/badge/OpenClaw-Plugin-orange?style=flat-square" alt="OpenClaw Plugin" /></a>
   <a href="https://github.com/THUDM/slime"><img src="https://img.shields.io/badge/Slime-Based-purple?style=flat-square" alt="Slime Based" /></a>
@@ -40,7 +40,7 @@
 
 ## 📰 News
 
-- **[2026/3/10]** 🔥 We have released our [technique report](./pdf/OpenClaw_RL.pdf)!
+- **[2026/3/10]** 🔥 We have released our [technique report](https://arxiv.org/abs/2603.10165)!
 - **[2026/3/10]** 🔥 Huge updates today! We released a [new combination method](./openclaw-combine), along with an [interesting evaluation](./openclaw-test) of these OpenClaw-RL methods. Track 2 is released too, featuring scalable RL implementations for general agent settings across [terminal](./terminal-rl), [GUI](./gui-rl), [SWE](./swe-rl), and [tool-call](./toolcall-rl) scenarios. We only focus on real-world settings!
 - **[2026/3/3]** 🙌 Working with the authors of [SDFT](https://arxiv.org/abs/2601.19897) and [SDPO](https://arxiv.org/abs/2601.20802), we have integrated their methods into [openclaw-opd](./openclaw-opd). We welcome the integration of novel and effective methods!
 - **[2026/3/3]** 📺 Check out these community tutorial videos on OpenClaw-RL: [**Video 1**](https://www.youtube.com/watch?v=5xnm1vB7G64) | [**Video 2**](https://www.youtube.com/watch?v=ZtN6Gg_bdJE)
