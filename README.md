@@ -106,7 +106,8 @@ Our long-term goal is to **advance personalized, practically useful agents with 
 #### Track 1 — [Personal Agent Optimization](#personalagent) (Small-Scale but Personal)
 ✅ **Release Track 1:** Fully async OpenClaw-RL framework with Binary RL + OPD  
 ✅ Best recipe discovery via demonstration experiments  
-⬜ Support Lora Training & low-precision training/inference  
+✅ Support LoRA Training
+⬜ Support low-precision training/inference
 ⬜ Deploy training on [Tinker](https://thinkingmachines.ai/tinker/)  
 ⬜ Beyond the policy: extend learning to skills and memory  
 
@@ -123,7 +124,7 @@ We welcome contributions that integrate new learning methods into the OpenClaw-R
 **Highly wanted contributions:**
 - ☁️ **Tinker cloud deployment** — run OpenClaw-RL training on [Tinker](https://thinkingmachines.ai/tinker/)
 - 🤖 **Qwen3.5 model support** — launch scripts and model configs for the Qwen3.5 family
-- 🔧 **LoRA & low-precision examples** — enable training on consumer-grade hardware with fewer GPUs
+- 🔧 **Low-precision training examples** — FP8/INT4 training scripts for existing methods
 
 <details>
 <summary><b>📋 Full contribution guidelines & feature wishlist</b></summary>
@@ -189,16 +190,15 @@ For changes within an existing method folder — such as supporting a new model 
 - Update READMEs to list Qwen3.5 as a supported model.
 
 
-### 3. 🔧 LoRA Training & Low-Precision Training/Inference Examples 
+### 3. 🔧 Low-Precision Training/Inference Examples
 
 **Type:** Extend existing method folders
 
-**Goal:** Add LoRA fine-tuning and low-precision (e.g., INT8/INT4 inference, BF16/FP8 training) example scripts to existing method folders, enabling users to run OpenClaw-RL on consumer-grade hardware with fewer GPUs.
+**Goal:** Add low-precision (e.g., INT8/INT4 inference, BF16/FP8 training) example scripts to existing method folders, enabling users to run OpenClaw-RL on consumer-grade hardware with fewer GPUs.
 
 **Requirements:**
 
-- Add **new** `.sh` scripts within existing method folders (e.g., `openclaw-combine/run_qwen3_4b_lora.sh`, `openclaw-rl/run_qwen3_4b_lora.sh`) — do not modify existing scripts.
-- LoRA training: demonstrate parameter-efficient fine-tuning with configurable rank, alpha, and target modules. Should work with 2–4 GPUs.
+- Add **new** `.sh` scripts within existing method folders — do not modify existing scripts.
 - Low-precision inference: demonstrate launching the SGLang rollout engine with quantized weights (e.g., AWQ/GPTQ INT4) to reduce VRAM for the serving side.
 - Low-precision training: if supported by the Megatron backend, demonstrate FP8 or mixed-precision configurations that reduce training memory.
 - Update the corresponding `README.md` in each method folder with a new section documenting these scripts.
@@ -278,6 +278,20 @@ bash ../openclaw-combine/run_qwen3_4b_openclaw_combine.sh
 This method combines binary RL and OPD to achieve the best optimization.
 
 See [`./openclaw-combine/README.md`](./openclaw-combine/README.md) for algorithm details.
+
+**With LoRA** (parameter-efficient, fewer GPUs):
+```bash
+bash ../openclaw-combine/run_qwen3_4b_openclaw_combine_lora.sh
+```
+
+All LoRA variants use PEFT LoRA adapters on the FSDP backend, training only ~0.8% of model parameters. After training, merge the adapter into a standard HF checkpoint:
+
+```bash
+python slime/tools/merge_lora_adapter.py \
+    --base-model /path/to/base_model \
+    --adapter /path/to/lora_checkpoint/model \
+    --output /path/to/merged_model
+```
 </details>
 
 
@@ -288,6 +302,11 @@ See [`./openclaw-combine/README.md`](./openclaw-combine/README.md) for algorithm
 ```bash
 cd slime
 bash ../openclaw-rl/run_qwen3_4b_openclaw_rl.sh
+```
+
+**With LoRA** (parameter-efficient, fewer GPUs):
+```bash
+bash ../openclaw-rl/run_qwen3_4b_openclaw_rl_lora.sh
 ```
 
 The PRM will automatically judge response quality from next-state feedback. We recommend providing frequent feedback (e.g., 👍/👎) to help the model optimize effectively.
@@ -303,6 +322,11 @@ See [`./openclaw-rl/README.md`](./openclaw-rl/README.md) for algorithm details.
 ```bash
 cd slime
 bash ../openclaw-opd/run_qwen3_4b_openclaw_opd.sh
+```
+
+**With LoRA** (parameter-efficient, fewer GPUs):
+```bash
+bash ../openclaw-opd/run_qwen3_4b_openclaw_opd_topk_lora.sh
 ```
 
 The system extracts hindsight hints from your feedback and distills them into the policy at the token level. We recommend providing concrete feedback (e.g., "you should have checked the file first" or "don't use that library").
