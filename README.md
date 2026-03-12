@@ -61,6 +61,8 @@ Most RL-for-LLM systems assume centralized, batch-mode training with pre-collect
 
 
 
+> **Highlights:** Fully async 4-component loop · Self-hosted & private · Zero manual labeling · Three learning paradigms (Binary RL / OPD / Combine) · Personal + General agent support
+
 <details>
 <summary><b>🌈 Features</b></summary>
 
@@ -118,8 +120,13 @@ Our long-term goal is to **advance personalized, practically useful agents with 
 
 We welcome contributions that integrate new learning methods into the OpenClaw-RL framework! The integration of [SDFT](https://arxiv.org/abs/2601.19897) / [SDPO](https://arxiv.org/abs/2601.20802) into [openclaw-opd](./openclaw-opd) is a great example of a successful community contribution.
 
+**Highly wanted contributions:**
+- ☁️ **Tinker cloud deployment** — run OpenClaw-RL training on [Tinker](https://thinkingmachines.ai/tinker/)
+- 🤖 **Qwen3.5 model support** — launch scripts and model configs for the Qwen3.5 family
+- 🔧 **LoRA & low-precision examples** — enable training on consumer-grade hardware with fewer GPUs
+
 <details>
-<summary><b>How to Contribute a New Method</b></summary>
+<summary><b>📋 Full contribution guidelines & feature wishlist</b></summary>
 
 
 # Call for Contributions
