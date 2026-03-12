@@ -120,7 +120,7 @@ Our long-term goal is to **advance personalized, practically useful agents with 
 
 ## 🤝 Contributing
 
-We welcome contributions that integrate new learning methods into the OpenClaw-RL framework! The integration of [SDFT](https://arxiv.org/abs/2601.19897) / [SDPO](https://arxiv.org/abs/2601.20802) into [openclaw-opd](./openclaw-opd) is a great example of a successful community contribution.
+We welcome contributions that integrate new learning methods into the OpenClaw-RL framework! The integration of [SDFT](https://arxiv.org/abs/2601.19897) / [SDPO](https://arxiv.org/abs/2601.20802) into [openclaw-opd](./openclaw-opd), and [supporting LoRA](https://github.com/Gen-Verse/OpenClaw-RL/pull/23) are great examples of successful community contributions.
 
 **Highly wanted contributions:**
 - ☁️ **Tinker cloud deployment** — run OpenClaw-RL training on [Tinker](https://thinkingmachines.ai/tinker/)
