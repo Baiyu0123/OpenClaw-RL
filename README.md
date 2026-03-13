@@ -40,7 +40,7 @@
 
 ## 📰 News
 
-- **[2026/3/13]** 🔥 You no longer need GPU now. You can launch your model server with literally just [one line of code](#combinemethodtinker). We now support the Tinker server with Hybrid RL (combination method), OPD, and Binary RL!
+- **[2026/3/13]** 🔥 You no longer need GPU now. You can launch your model server with literally just [one line of code](#combinemethod). We now support the Tinker server with Hybrid RL (combination method), OPD, and Binary RL!
 - **[2026/3/12]** 🔥 We support LoRA training now!
 - **[2026/3/10]** 🔥 We have released our [**Technical Report**](https://arxiv.org/abs/2603.10165)! 🏆 Ranked **#1** on [HuggingFace Daily Papers](https://huggingface.co/papers/2603.10165)!
 - **[2026/3/10]** 🔥 Huge updates today! We released a [new combination method](./openclaw-combine), along with an [interesting evaluation](./openclaw-test) of these OpenClaw-RL methods. Track 2 is released too, featuring scalable RL implementations for general agent settings across [terminal](./terminal-rl), [GUI](./gui-rl), [SWE](./swe-rl), and [tool-call](./toolcall-rl) scenarios. We only focus on real-world settings!
@@ -163,21 +163,8 @@ For changes within an existing method folder — such as supporting a new model 
 
 ## Highly Preferred Features
 
-### 1. ☁️ Deploy Training on [Tinker](https://thinkingmachines.ai/tinker/)   
 
-**Type:** New method folder
-
-**Goal:** Add a new top-level folder (e.g., `tinker/`) that provides a turnkey example for running OpenClaw-RL training on the Tinker cloud platform.
-
-**Requirements:**
-
-- A new self-contained folder at the repo root, following the same structure as other method folders.
-- A launch script that adapts GPU allocation, Ray setup, and networking for the Tinker environment.
-- The recommended training method is the **combination loss** (`openclaw-combine`), as it achieves the best results in our experiments. The example should either import or replicate the combination loss setup.
-- A `README.md` covering: Tinker-specific prerequisites, step-by-step setup, how to configure checkpoints and data paths on Tinker, and how to connect OpenClaw to the running server.
-
-
-### 2. 🤖 Qwen3.5 Model Support 
+### 1. 🤖 Qwen3.5 Model Support of slime
 
 **Type:** Extend existing method folders
 
@@ -191,7 +178,7 @@ For changes within an existing method folder — such as supporting a new model 
 - Update READMEs to list Qwen3.5 as a supported model.
 
 
-### 3. 🔧 Low-Precision Training/Inference Examples
+### 2. 🔧 Low-Precision Training/Inference Examples
 
 **Type:** Extend existing method folders
 
@@ -318,7 +305,7 @@ bash ../openclaw-rl/run_qwen3_4b_openclaw_rl_lora.sh
 **With Tinker** (No GPUs at all)
 ```bash
 cd openclaw-tinker
-python run.py --method opd --model-name Qwen/Qwen3-4B-Instruct-2507 --prm-m 1
+python run.py --method rl --model-name Qwen/Qwen3-4B-Instruct-2507 --prm-m 3
 ```
 
 see [`./openclaw-tinker/README.md`](./openclaw-tinker/README.md) for setup details.
@@ -348,7 +335,7 @@ bash ../openclaw-opd/run_qwen3_4b_openclaw_opd_topk_lora.sh
 **With Tinker** (No GPUs at all)
 ```bash
 cd openclaw-tinker
-python run.py --method rl --model-name Qwen/Qwen3-4B-Instruct-2507 --prm-m 3
+python run.py --method opd --model-name Qwen/Qwen3-4B-Instruct-2507 --prm-m 1
 ```
 
 see [`./openclaw-tinker/README.md`](./openclaw-tinker/README.md) for setup details.
