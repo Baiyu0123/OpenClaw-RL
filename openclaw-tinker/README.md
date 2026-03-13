@@ -14,13 +14,13 @@ Unified training framework for OpenClaw on [Tinker](https://tinker.build) cloud 
 export TINKER_API_KEY="your-tinker-api-key"
 
 # RL method (default)
-python run.py --method rl --model-name Qwen/Qwen3-4B-Instruct-2507 --prm-m 3
+python run.py --method rl --model-name Qwen/Qwen3-4B-Instruct-2507 --prm-m 3 --batch-size 16
 
 # OPD method
-python run.py --method opd --model-name Qwen/Qwen3-4B-Instruct-2507 --prm-m 1
+python run.py --method opd --model-name Qwen/Qwen3-4B-Instruct-2507 --prm-m 1 --batch-size 16
 
 # Combined method
-python run.py --method combine --model-name Qwen/Qwen3-4B-Instruct-2507 --prm-m 1 --w-opd 1.0 --w-rl 1.0
+python run.py --method combine --model-name Qwen/Qwen3-4B-Instruct-2507 --prm-m 1 --batch-size 16 --w-opd 1.0 --w-rl 1.0
 ```
 
 ## Architecture
