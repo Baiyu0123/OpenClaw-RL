@@ -43,7 +43,7 @@
 
 ## 📰 News
 
-- **[2026/3/13]** 🔥 You no longer need GPU now. You can launch your model server with literally just [one line of code](#combinemethod). We now support the Tinker server with Hybrid RL (combination method), OPD, and Binary RL!
+- **[2026/3/13]** 🔥 You no longer need GPU now. You can launch your model server with literally just [one line of code](#combinemethod). We now support the Tinker server with Hybrid RL (combination method, best of all), OPD, and Binary RL!
 - **[2026/3/12]** 🔥 We support LoRA training now!
 - **[2026/3/10]** 🔥 We have released our [**Technical Report**](https://arxiv.org/abs/2603.10165)! 🏆 Ranked **#1** on [HuggingFace Daily Papers](https://huggingface.co/papers/2603.10165)!
 - **[2026/3/10]** 🔥 Huge updates today! We released a [new combination method](./openclaw-combine), along with an [interesting evaluation](./openclaw-test) of these OpenClaw-RL methods. Track 2 is released too, featuring scalable RL implementations for general agent settings across [terminal](./terminal-rl), [GUI](./gui-rl), [SWE](./swe-rl), and [tool-call](./toolcall-rl) scenarios. We only focus on real-world settings!
