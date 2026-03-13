@@ -224,7 +224,7 @@ If you're interested in any of these, feel free to open an issue to discuss your
 <a id="personalagent"></a>
 ## 🔧 Personal Agent Optimization Quick Start
 
-### 1. RL Server Environment
+### 1. Deployment Options
 
 <details>
 <summary><b>If you don't have any money!</b></summary>
@@ -550,7 +550,7 @@ See [`./toolcall-rl/README.md`](./toolcall-rl/README.md) for setup details.
 
 ## 🙏 Acknowledgements
 
-This work aims to explore more effective paradigms for Agentic RL. Our implementation builds upon the excellent codebases of [slime](https://github.com/THUDM/slime), [OpenClaw](https://github.com/openclaw/openclaw) and [Open-AgentRL](https://github.com/Gen-Verse/Open-AgentRL). 
+This work aims to explore more effective paradigms for Agentic RL. Our implementation builds upon the excellent codebases of [slime](https://github.com/THUDM/slime), [OpenClaw](https://github.com/openclaw/openclaw), [Tinker](https://thinkingmachines.ai/tinker/) and [Open-AgentRL](https://github.com/Gen-Verse/Open-AgentRL). 
 
 We also build terminal RL using [SETA](https://github.com/camel-ai/seta)'s dataset and agent framework, GUI RL using [OSWorld](https://github.com/xlang-ai/OSWorld)'s evaluation scripts, SWE RL using [mini-swe-agent](https://github.com/SWE-agent/mini-swe-agent)'s evaluation scripts, and tool-call RL based on the work of [Retool](https://github.com/ReTool-RL/ReTool).
 
