@@ -40,6 +40,7 @@
 
 ## 📰 News
 
+- **[2026/3/13]** 🔥 You no longer need GPU now. You can launch your model server with literally just one line of code. We now support the Tinker server with Combination, OPD, and Binary RL!
 - **[2026/3/12]** 🔥 We support LoRA training now!
 - **[2026/3/10]** 🔥 We have released our [**Technical Report**](https://arxiv.org/abs/2603.10165)! 🏆 Ranked **#1** on [HuggingFace Daily Papers](https://huggingface.co/papers/2603.10165)!
 - **[2026/3/10]** 🔥 Huge updates today! We released a [new combination method](./openclaw-combine), along with an [interesting evaluation](./openclaw-test) of these OpenClaw-RL methods. Track 2 is released too, featuring scalable RL implementations for general agent settings across [terminal](./terminal-rl), [GUI](./gui-rl), [SWE](./swe-rl), and [tool-call](./toolcall-rl) scenarios. We only focus on real-world settings!
@@ -108,8 +109,8 @@ Our long-term goal is to **advance personalized, practically useful agents with 
 ✅ **Release Track 1:** Fully async OpenClaw-RL framework with Binary RL + OPD  
 ✅ Best recipe discovery via demonstration experiments  
 ✅ Support LoRA Training  
+✅ Deploy training on [Tinker](https://thinkingmachines.ai/tinker/)  
 ⬜ Support low-precision training/inference  
-⬜ Deploy training on [Tinker](https://thinkingmachines.ai/tinker/)  
 ⬜ Beyond the policy: extend learning to skills and memory  
 
 #### Track 2 — [General Agents Optimization](#generalagent) (Scalable Infra)
@@ -123,9 +124,8 @@ Our long-term goal is to **advance personalized, practically useful agents with 
 We welcome contributions that integrate new learning methods into the OpenClaw-RL framework! The integration of [SDFT](https://arxiv.org/abs/2601.19897) / [SDPO](https://arxiv.org/abs/2601.20802) into [openclaw-opd](./openclaw-opd), and [supporting LoRA](https://github.com/Gen-Verse/OpenClaw-RL/pull/23) are great examples of successful community contributions.
 
 **Highly wanted contributions:**
-- 🤖 **Qwen3.5 model support** — launch scripts and model configs for the Qwen3.5 family
+- 🤖 **Qwen3.5 model support with slime** — launch scripts and model configs for the Qwen3.5 family
 - 🔧 **Low-precision training examples** — FP8/INT4 training scripts for existing methods
-- ☁️ **Tinker cloud deployment** — run OpenClaw-RL training on [Tinker](https://thinkingmachines.ai/tinker/)
 
 <details>
 <summary><b>📋 Full contribution guidelines & feature wishlist</b></summary>
@@ -285,14 +285,14 @@ See [`./openclaw-combine/README.md`](./openclaw-combine/README.md) for algorithm
 bash ../openclaw-combine/run_qwen3_4b_openclaw_combine_lora.sh
 ```
 
-All LoRA variants use PEFT LoRA adapters on the FSDP backend, training only ~0.8% of model parameters. After training, merge the adapter into a standard HF checkpoint:
-
+**With Tinker** (No GPUs at all)
 ```bash
-python slime/tools/merge_lora_adapter.py \
-    --base-model /path/to/base_model \
-    --adapter /path/to/lora_checkpoint/model \
-    --output /path/to/merged_model
+cd openclaw-tinker
+python run.py --method combine --model-name Qwen/Qwen3-4B-Instruct-2507 --prm-m 1 --w-opd 1.0 --w-rl 1.0
 ```
+
+see [`./openclaw-tinker/README.md`](./openclaw-tinker/README.md) for setup details.
+
 </details>
 
 
@@ -305,14 +305,24 @@ cd slime
 bash ../openclaw-rl/run_qwen3_4b_openclaw_rl.sh
 ```
 
+The PRM will automatically judge response quality from next-state feedback. We recommend providing frequent feedback (e.g., 👍/👎) to help the model optimize effectively.
+
+See [`./openclaw-rl/README.md`](./openclaw-rl/README.md) for algorithm details.
+
 **With LoRA** (parameter-efficient, fewer GPUs):
 ```bash
 bash ../openclaw-rl/run_qwen3_4b_openclaw_rl_lora.sh
 ```
 
-The PRM will automatically judge response quality from next-state feedback. We recommend providing frequent feedback (e.g., 👍/👎) to help the model optimize effectively.
+**With Tinker** (No GPUs at all)
+```bash
+cd openclaw-tinker
+python run.py --method opd --model-name Qwen/Qwen3-4B-Instruct-2507 --prm-m 1
+```
 
-See [`./openclaw-rl/README.md`](./openclaw-rl/README.md) for algorithm details.
+see [`./openclaw-tinker/README.md`](./openclaw-tinker/README.md) for setup details.
+
+
 </details>
 
 
@@ -325,14 +335,25 @@ cd slime
 bash ../openclaw-opd/run_qwen3_4b_openclaw_opd.sh
 ```
 
+The system extracts hindsight hints from your feedback and distills them into the policy at the token level. We recommend providing concrete feedback (e.g., "you should have checked the file first" or "don't use that library").
+
+See [`./openclaw-opd/README.md`](./openclaw-opd/README.md) for algorithm details.
+
 **With LoRA** (parameter-efficient, fewer GPUs):
 ```bash
 bash ../openclaw-opd/run_qwen3_4b_openclaw_opd_topk_lora.sh
 ```
 
-The system extracts hindsight hints from your feedback and distills them into the policy at the token level. We recommend providing concrete feedback (e.g., "you should have checked the file first" or "don't use that library").
+**With Tinker** (No GPUs at all)
+```bash
+cd openclaw-tinker
+python run.py --method rl --model-name Qwen/Qwen3-4B-Instruct-2507 --prm-m 3
+```
 
-See [`./openclaw-opd/README.md`](./openclaw-opd/README.md) for algorithm details.
+see [`./openclaw-tinker/README.md`](./openclaw-tinker/README.md) for setup details.
+
+
+
 </details>
 
 Once running, the model is served as an OpenAI-compatible API at:
