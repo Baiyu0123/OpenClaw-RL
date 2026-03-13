@@ -236,6 +236,7 @@ If you're interested in any of these, feel free to open an issue to discuss your
 For detailed environment setup, see [Slime](https://github.com/THUDM/slime) or [`./instructions/README.md`](./instructions/README.md).
 </details>
 
+
 <details>
 <summary><b>If you don't have a GPU!</b></summary>
 
@@ -243,7 +244,11 @@ Create a [Tinker API](https://github.com/THUDM/slime). That's all you need~
 </details>
 
 
+<details>
+<summary><b>If you don't have any money or a GPU!</b></summary>
 
+Don't worry, we'll find a way for you soon~
+</details>
 
 
 
