@@ -227,7 +227,7 @@ If you're interested in any of these, feel free to open an issue to discuss your
 ### 1. RL Server Environment
 
 <details>
-<summary><b>If you don't have money!</b></summary>
+<summary><b>If you don't have any money!</b></summary>
 
 - **Hardware:** 8× GPUs (default; configurable via `NUM_GPUS`, `ACTOR_GPUS`, `ROLLOUT_GPUS`, `PRM_GPUS`)
 - **Software:** CUDA 12.9, Python 3.12
@@ -237,8 +237,9 @@ For detailed environment setup, see [Slime](https://github.com/THUDM/slime) or [
 </details>
 
 <details>
-<summary><b>If you don't have GPU!</b></summary>
-Create a [Tinker API](https://thinkingmachines.ai/tinker/). That's all you need~
+<summary><b>If you don't have a GPU!</b></summary>
+
+Create a [Tinker API](https://github.com/THUDM/slime). That's all you need~
 </details>
 
 
@@ -386,6 +387,8 @@ Install OpenClaw from the version bundled in this repository (we will update it 
 
 Open your `openclaw.json` (or the equivalent settings file) and add a provider entry under `"models"` → `"providers"`:
 
+Example of Slime-based RL server:
+
 ```json
 {
   "models": {
@@ -418,26 +421,46 @@ Open your `openclaw.json` (or the equivalent settings file) and add a provider e
 
 Replace `<HOST_IP>` with the IP address of your RL server machine. The `apiKey` should match the `SGLANG_API_KEY` you set when starting the server.
 
+Example of Tinker-based RL server:
+
+
+```json
+{
+  "models": {
+    "providers": {
+      "openclaw-rl": {
+        "baseUrl": "http://localhost:30000/v1",
+        "apiKey": "no-auth-needed",
+        "api": "openai-completions",
+        "models": [
+          {
+            "id": "qwen3-4b-lora",
+            "name": "Qwen3 4B (OpenClaw-RL LoRA)",
+            "reasoning": true,
+            "input": ["text"],
+            "cost": {
+              "input": 0,
+              "output": 0,
+              "cacheRead": 0,
+              "cacheWrite": 0
+            },
+            "contextWindow": 32768,
+            "maxTokens": 8192
+          }
+        ]
+      }
+    }
+  }
+}
+```
+
+
+
 That's it — start chatting with your OpenClaw agent. The RL server will automatically collect conversation trajectories, compute rewards, and train the model. Your agent gets better the more you use it.
 
 </details>
 
-#### Configurations
 
-Before launching, set these important environment variables as needed:
-
-| Variable | Default | Description |
-|---|---|---|
-| `NUM_GPUS` | `8` | Total GPUs available on the machine |
-| `ACTOR_GPUS` | `4` | GPUs allocated to the training actor |
-| `ROLLOUT_GPUS` | `2` | GPUs allocated to rollout generation |
-| `PRM_GPUS` | `2` | GPUs allocated to the Process Reward Model |
-| `HF_CKPT` | (see script) | Path to the base HuggingFace checkpoint |
-| `PRM_MODEL_PATH` | (see script) | Path to the reward model HuggingFace checkpoint |
-| `SAVE_CKPT` | (see script) | Path to the saved HuggingFace checkpoint |
-| `SGLANG_API_KEY` | — | API key for the SGLang serving endpoint |
-
-You can check more details about configurations in [`./instructions`](./instructions) .
 
 
 ---
