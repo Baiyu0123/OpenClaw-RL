@@ -226,15 +226,20 @@ If you're interested in any of these, feel free to open an issue to discuss your
 
 ### 1. RL Server Environment
 
-### Prerequisites
+<details>
+<summary><b>If you don't have money!</b></summary>
 
 - **Hardware:** 8× GPUs (default; configurable via `NUM_GPUS`, `ACTOR_GPUS`, `ROLLOUT_GPUS`, `PRM_GPUS`)
 - **Software:** CUDA 12.9, Python 3.12
 - **Framework:** [Slime](https://github.com/THUDM/slime) (our base RL framework)
 
 For detailed environment setup, see [Slime](https://github.com/THUDM/slime) or [`./instructions/README.md`](./instructions/README.md).
+</details>
 
-
+<details>
+<summary><b>If you don't have GPU!</b></summary>
+Create a [Tinker API](https://thinkingmachines.ai/tinker/). That's all you need~
+</details>
 
 
 
