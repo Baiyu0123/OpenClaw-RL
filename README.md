@@ -282,7 +282,7 @@ bash ../openclaw-combine/run_qwen3_4b_openclaw_combine_lora.sh
 **With Tinker** (No GPUs at all)
 ```bash
 cd openclaw-tinker
-python run.py --method combine --model-name Qwen/Qwen3-4B-Instruct-2507 --batch-size 16 --prm-m 1 --w-opd 1.0 --w-rl 1.0
+python run.py --method combine --model-name Qwen/Qwen3-8B --batch-size 16 --prm-m 1 --w-opd 1.0 --w-rl 1.0
 ```
 
 see [`./openclaw-tinker/README.md`](./openclaw-tinker/README.md) for setup details.
@@ -311,7 +311,7 @@ bash ../openclaw-rl/run_qwen3_4b_openclaw_rl_lora.sh
 **With Tinker** (No GPUs at all)
 ```bash
 cd openclaw-tinker
-python run.py --method rl --model-name Qwen/Qwen3-4B-Instruct-2507 --batch-size 16 --prm-m 3
+python run.py --method rl --model-name Qwen/Qwen3-8B --batch-size 16 --prm-m 3
 ```
 
 see [`./openclaw-tinker/README.md`](./openclaw-tinker/README.md) for setup details.
@@ -341,7 +341,7 @@ bash ../openclaw-opd/run_qwen3_4b_openclaw_opd_topk_lora.sh
 **With Tinker** (No GPUs at all)
 ```bash
 cd openclaw-tinker
-python run.py --method opd --model-name Qwen/Qwen3-4B-Instruct-2507  --batch-size 16 --prm-m 1
+python run.py --method opd --model-name Qwen/Qwen3-8B --batch-size 16 --prm-m 1
 ```
 
 see [`./openclaw-tinker/README.md`](./openclaw-tinker/README.md) for setup details.
