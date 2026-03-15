@@ -34,7 +34,7 @@ class TinkerConfig:
     batch_size: int = 4
     max_steps: int = 1000
     loss_fn: str = "ppo"
-    kl_loss_coef: float = 0.02
+    kl_loss_coef: float = 0.0
     save_weights_timeout: float = 200.0
     save_interval: int = 20
     resume_from_ckpt: str = ""

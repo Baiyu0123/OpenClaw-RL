@@ -13,14 +13,14 @@ Unified training framework for OpenClaw on [Tinker](https://tinker.build) cloud 
 ```bash
 export TINKER_API_KEY="your-tinker-api-key"
 
-# RL method (default)
+# Combined method
+python run.py --method combine --model-name Qwen/Qwen3-8B --prm-m 1 --batch-size 16 --w-opd 1.0 --w-rl 1.0
+
+# RL method 
 python run.py --method rl --model-name Qwen/Qwen3-8B --prm-m 3 --batch-size 16
 
 # OPD method
 python run.py --method opd --model-name Qwen/Qwen3-8B --prm-m 1 --batch-size 16
-
-# Combined method
-python run.py --method combine --model-name Qwen/Qwen3-8B --prm-m 1 --batch-size 16 --w-opd 1.0 --w-rl 1.0
 ```
 
 ## Architecture
@@ -68,7 +68,7 @@ All parameters can be set via CLI flags or environment variables:
 | `--batch-size` | `BATCH_SIZE` | `4` | Samples per training step |
 | `--max-steps` | `MAX_STEPS` | `1000` | Total training steps |
 | `--loss-fn` | `LOSS_FN` | `ppo` | Tinker loss: `ppo`, `importance_sampling`, `cispo` |
-| `--kl-loss-coef` | `KL_LOSS_COEF` | `0.02` | KL penalty coefficient |
+| `--kl-loss-coef` | `KL_LOSS_COEF` | `0.0` | KL penalty coefficient |
 | `--save-interval` | `SAVE_INTERVAL` | `20` | Save checkpoint every N steps |
 | `--resume-from-ckpt` | `RESUME_FROM_CKPT` | | Resume from checkpoint path |
 

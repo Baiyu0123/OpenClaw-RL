@@ -345,17 +345,26 @@ class OPDScorer:
 
         # Optional PRM eval
         eval_score = None
+        eval_raw = ""
         if self.eval_mode:
             eval_msgs = build_prm_eval_prompt(response_text, next_state_text, next_state_role)
             eval_results = await asyncio.gather(
                 *[self._query_eval_once(eval_msgs, i) for i in range(self.m)]
             )
-            eval_score = majority_vote(eval_results)
+            eval_scores = [r[0] for r in eval_results]
+            eval_raws = [r[1] for r in eval_results]
+            eval_score = majority_vote(eval_scores)
+            # Pick the representative raw text matching the winning vote
+            for s, raw in zip(eval_scores, eval_raws):
+                if s is not None and s == int(eval_score):
+                    eval_raw = raw
+                    break
 
         selected = select_best_hint(votes)
         if selected is None:
             logger.info("[OPD] session=%s turn=%d no valid hint, sample dropped", session_id, turn_num)
-            return {"accepted": False, "teacher_log_probs": None, "hint": "", "eval_score": eval_score}
+            return {"accepted": False, "teacher_log_probs": None, "hint": "",
+                    "eval_score": eval_score, "hint_raw": "", "eval_raw": eval_raw}
 
         hint = selected["hint"].strip()
         teacher_lps = await _tinker_teacher_logprobs(
@@ -363,8 +372,10 @@ class OPDScorer:
             normalize_fn, session_id, turn_num,
         )
 
-        logger.info("[OPD] session=%s turn=%d accepted hint_len=%d", session_id, turn_num, len(hint))
-        return {"accepted": True, "teacher_log_probs": teacher_lps, "hint": hint, "eval_score": eval_score}
+        logger.info("[OPD] session=%s turn=%d accepted hint_len=%d hint=%s",
+                     session_id, turn_num, len(hint), hint)
+        return {"accepted": True, "teacher_log_probs": teacher_lps, "hint": hint,
+                "eval_score": eval_score, "hint_raw": selected.get("raw", ""), "eval_raw": eval_raw}
 
     async def _query_judge_once(self, messages: list[dict], vote_id: int) -> dict:
         try:
@@ -378,16 +389,16 @@ class OPDScorer:
             logger.warning("[OPD] judge query failed (vote %d): %s", vote_id, e)
             return {"vote_id": vote_id, "score": None, "hint": "", "raw": ""}
 
-    async def _query_eval_once(self, messages: list[dict], vote_id: int) -> Optional[int]:
+    async def _query_eval_once(self, messages: list[dict], vote_id: int) -> tuple[Optional[int], str]:
         try:
             content = await _tinker_generate(
                 self._teacher_client, self._tokenizer, messages,
                 self.temperature, self.max_tokens,
             )
-            return parse_prm_eval_score(content)
+            return parse_prm_eval_score(content), content
         except Exception as e:
             logger.warning("[OPD] eval query failed (vote %d): %s", vote_id, e)
-            return None
+            return None, ""
 
 
 # ===========================================================================
@@ -422,12 +433,22 @@ class CombinedScorer:
         votes = list(all_results[:self.m])
         eval_results = list(all_results[self.m:])
 
-        eval_score = majority_vote(eval_results)
+        eval_scores = [r[0] for r in eval_results]
+        eval_raws = [r[1] for r in eval_results]
+        eval_score = majority_vote(eval_scores)
+
+        eval_raw = ""
+        for s, raw in zip(eval_scores, eval_raws):
+            if s is not None and s == int(eval_score):
+                eval_raw = raw
+                break
 
         selected = select_best_hint(votes)
         if selected is None:
-            logger.info("[Combined] session=%s turn=%d no valid hint", session_id, turn_num)
-            return {"accepted": False, "teacher_log_probs": None, "hint": "", "eval_score": eval_score}
+            logger.info("[Combined] session=%s turn=%d no valid hint eval_score=%.1f",
+                         session_id, turn_num, eval_score)
+            return {"accepted": False, "teacher_log_probs": None, "hint": "",
+                    "eval_score": eval_score, "hint_raw": "", "eval_raw": eval_raw}
 
         hint = selected["hint"].strip()
         teacher_lps = await _tinker_teacher_logprobs(
@@ -435,9 +456,10 @@ class CombinedScorer:
             normalize_fn, session_id, turn_num,
         )
 
-        logger.info("[Combined] session=%s turn=%d accepted hint_len=%d eval_score=%.1f",
-                     session_id, turn_num, len(hint), eval_score)
-        return {"accepted": True, "teacher_log_probs": teacher_lps, "hint": hint, "eval_score": eval_score}
+        logger.info("[Combined] session=%s turn=%d accepted hint_len=%d eval_score=%.1f hint=%s",
+                     session_id, turn_num, len(hint), eval_score, hint)
+        return {"accepted": True, "teacher_log_probs": teacher_lps, "hint": hint,
+                "eval_score": eval_score, "hint_raw": selected.get("raw", ""), "eval_raw": eval_raw}
 
     async def _query_judge_once(self, messages: list[dict], vote_id: int) -> dict:
         try:
@@ -451,13 +473,13 @@ class CombinedScorer:
             logger.warning("[Combined] judge query failed (vote %d): %s", vote_id, e)
             return {"vote_id": vote_id, "score": None, "hint": "", "raw": ""}
 
-    async def _query_eval_once(self, messages: list[dict], vote_id: int) -> Optional[int]:
+    async def _query_eval_once(self, messages: list[dict], vote_id: int) -> tuple[Optional[int], str]:
         try:
             content = await _tinker_generate(
                 self._teacher_client, self._tokenizer, messages,
                 self.temperature, self.max_tokens,
             )
-            return parse_prm_eval_score(content)
+            return parse_prm_eval_score(content), content
         except Exception as e:
             logger.warning("[Combined] eval query failed (vote %d): %s", vote_id, e)
-            return None
+            return None, ""

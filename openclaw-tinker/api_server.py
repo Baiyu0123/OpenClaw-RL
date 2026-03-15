@@ -602,6 +602,7 @@ class OpenClawRLServer(_BaseServer):
             self._append_score_record({
                 "session_id": session_id, "turn": sample.turn_num,
                 "score": score, "votes": prm_result.get("votes", []),
+                "representative": prm_result.get("representative", ""),
             })
 
         index = next(self._index_counter)
@@ -751,13 +752,19 @@ class OpenClawOPDServer(_BaseServer):
                 self._append_score_record({
                     "session_id": session_id, "turn": turn_num,
                     "accepted": False, "hint": "",
+                    "hint_raw": opd_result.get("hint_raw", ""),
+                    "eval_raw": opd_result.get("eval_raw", ""),
                 })
                 continue
 
+            hint = opd_result.get("hint", "")
+            logger.info("[Server] OPD hint session=%s turn=%d:\n%s", session_id, turn_num, hint)
             self._append_score_record({
                 "session_id": session_id, "turn": turn_num,
-                "accepted": True, "hint": opd_result.get("hint", ""),
-                "hint_len": len(opd_result.get("hint", "")),
+                "accepted": True, "hint": hint,
+                "hint_len": len(hint),
+                "hint_raw": opd_result.get("hint_raw", ""),
+                "eval_raw": opd_result.get("eval_raw", ""),
             })
             self._safe_create_task(self._submit_turn_sample(td, session_id, opd_result))
 
@@ -948,23 +955,31 @@ class OpenClawCombineServer(_BaseServer):
             opd_accepted = result.get("accepted")
             has_valid_rl = self._is_valid_rl_score(eval_score)
 
+            hint = result.get("hint", "")
+            hint_raw = result.get("hint_raw", "")
+            eval_raw = result.get("eval_raw", "")
+
             if opd_accepted and has_valid_rl:
+                logger.info("[Server] OPD+RL hint session=%s turn=%d:\n%s", session_id, turn_num, hint)
                 self._safe_create_task(
                     self._submit_opd_sample(td, session_id, result, reward=float(eval_score))
                 )
                 self._append_score_record({
                     "session_id": session_id, "turn": turn_num,
                     "type": "opd+rl", "eval_score": eval_score,
-                    "hint_len": len(result.get("hint", "")),
+                    "hint": hint, "hint_len": len(hint),
+                    "hint_raw": hint_raw, "eval_raw": eval_raw,
                 })
             elif opd_accepted:
+                logger.info("[Server] OPD hint session=%s turn=%d:\n%s", session_id, turn_num, hint)
                 self._safe_create_task(
                     self._submit_opd_sample(td, session_id, result, reward=0.0)
                 )
                 self._append_score_record({
                     "session_id": session_id, "turn": turn_num,
                     "type": "opd", "eval_score": eval_score,
-                    "hint_len": len(result.get("hint", "")),
+                    "hint": hint, "hint_len": len(hint),
+                    "hint_raw": hint_raw, "eval_raw": eval_raw,
                 })
             elif has_valid_rl:
                 self._safe_create_task(
@@ -973,6 +988,7 @@ class OpenClawCombineServer(_BaseServer):
                 self._append_score_record({
                     "session_id": session_id, "turn": turn_num,
                     "type": "rl", "eval_score": eval_score,
+                    "eval_raw": eval_raw,
                 })
             else:
                 logger.info("[Server] no signal session=%s turn=%d", session_id, turn_num)
