@@ -178,7 +178,7 @@ class _BaseServer:
             from transformers import AutoTokenizer
             return AutoTokenizer.from_pretrained(self.config.model_name, trust_remote_code=True)
         except Exception as e:
-            logger.warning("[Server] could not load tokenizer: %s", e)
+            logger.error("[Server] FAILED to load tokenizer: %s", e, exc_info=True)
             return None
 
     # ------------------------------------------------------------------ app
@@ -264,11 +264,13 @@ class _BaseServer:
         )
 
         seq = response.sequences[0]
+        raw_response_tokens = list(seq.tokens)
+        raw_response_logprobs = [float(lp) for lp in (seq.logprobs or [])]
+
         response_text = self._tokenizer.decode(seq.tokens, skip_special_tokens=True)
         normalized_text, parsed_tool_calls = _extract_tool_calls(response_text)
-        logprobs_list = seq.logprobs or []
 
-        lp_content = [{"token": "", "logprob": float(lp), "top_logprobs": []} for lp in logprobs_list]
+        lp_content = [{"token": "", "logprob": lp, "top_logprobs": []} for lp in raw_response_logprobs]
         assistant_message: dict[str, Any] = {"role": "assistant", "content": normalized_text}
         if parsed_tool_calls:
             assistant_message["tool_calls"] = parsed_tool_calls
@@ -286,9 +288,13 @@ class _BaseServer:
             }],
             "usage": {
                 "prompt_tokens": len(prompt_ids),
-                "completion_tokens": len(seq.tokens),
-                "total_tokens": len(prompt_ids) + len(seq.tokens),
+                "completion_tokens": len(raw_response_tokens),
+                "total_tokens": len(prompt_ids) + len(raw_response_tokens),
             },
+            # Raw Tinker data for training — strictly aligned with each other
+            "_raw_prompt_ids": list(prompt_ids),
+            "_raw_response_tokens": raw_response_tokens,
+            "_raw_response_logprobs": raw_response_logprobs,
         }
 
     # ------------------------------------------------------------ records
@@ -346,19 +352,50 @@ class _BaseServer:
         raise NotImplementedError
 
     # -------------------------------------------------------- tokenize helpers
-    def _tokenize_turn(self, messages, assistant_msg, tools, choice):
-        """Shared tokenization logic for a main-line turn."""
+    def _tokenize_turn(self, messages, assistant_msg, tools, choice, output=None):
+        """Shared tokenization logic for a main-line turn.
+
+        Uses raw tokens/logprobs from Tinker (via output["_raw_*"]) to guarantee
+        strict alignment between response_ids and response_logprobs.
+        Falls back to re-tokenization only if raw data is unavailable.
+        """
+        norm_msgs = _normalize_messages(messages)
+        prompt_text = self._tokenizer.apply_chat_template(
+            norm_msgs, tools=tools, tokenize=False, add_generation_prompt=True,
+        )
+
+        # --- Use raw Tinker tokens (guaranteed aligned with logprobs) ---
+        if output is not None and "_raw_response_tokens" in output:
+            prompt_ids = output["_raw_prompt_ids"]
+            response_ids = output["_raw_response_tokens"]
+            response_logprobs = output["_raw_response_logprobs"]
+
+            if len(response_logprobs) != len(response_ids):
+                logger.error(
+                    "[Server] CRITICAL: raw logprobs len=%d != raw tokens len=%d, "
+                    "padding/truncating but this indicates a Tinker SDK bug",
+                    len(response_logprobs), len(response_ids),
+                )
+                if len(response_logprobs) > len(response_ids):
+                    response_logprobs = response_logprobs[:len(response_ids)]
+                else:
+                    response_logprobs = response_logprobs + [0.0] * (len(response_ids) - len(response_logprobs))
+
+            response_text = self._tokenizer.decode(response_ids, skip_special_tokens=True)
+            return prompt_ids, response_ids, response_logprobs, prompt_text, response_text
+
+        # --- Fallback: re-tokenize (legacy path, logprob alignment NOT guaranteed) ---
+        logger.warning(
+            "[Server] _tokenize_turn: raw tokens unavailable, falling back to "
+            "re-tokenization — logprob alignment is NOT guaranteed"
+        )
         response_msg = dict(assistant_msg)
         if response_msg.get("content") is None:
             response_msg["content"] = ""
 
-        norm_msgs = _normalize_messages(messages)
         norm_resp = _normalize_messages([response_msg])[0]
         full_norm = norm_msgs + [norm_resp]
 
-        prompt_text = self._tokenizer.apply_chat_template(
-            norm_msgs, tools=tools, tokenize=False, add_generation_prompt=True,
-        )
         full_text = self._tokenizer.apply_chat_template(
             full_norm, tools=tools, tokenize=False, add_generation_prompt=False,
         )
@@ -518,7 +555,7 @@ class OpenClawRLServer(_BaseServer):
                 self._flush_pending_record(session_id, messages[-1])
 
             prompt_ids, response_ids, response_logprobs, prompt_text, response_text = \
-                self._tokenize_turn(messages, assistant_msg, tools, choice)
+                self._tokenize_turn(messages, assistant_msg, tools, choice, output=output)
 
             if not response_ids and not response_text.strip():
                 output["session_id"] = session_id
@@ -681,7 +718,7 @@ class OpenClawOPDServer(_BaseServer):
                     self._fire_opd_task(session_id, prev_turn_num, prev_td, messages[-1])
 
             prompt_ids, response_ids, response_logprobs, prompt_text, response_text = \
-                self._tokenize_turn(messages, assistant_msg, tools, choice)
+                self._tokenize_turn(messages, assistant_msg, tools, choice, output=output)
 
             if not response_ids and not response_text.strip():
                 output["session_id"] = session_id
@@ -736,7 +773,7 @@ class OpenClawOPDServer(_BaseServer):
             try:
                 opd_result = task.result()
             except Exception as e:
-                logger.warning("[Server] OPD task failed session=%s turn=%d: %s", session_id, turn_num, e)
+                logger.error("[Server] OPD task FAILED session=%s turn=%d: %s", session_id, turn_num, e, exc_info=True)
                 if self.config.eval_mode:
                     with self._eval_scores_lock:
                         self._eval_scores.append(0.0)
@@ -884,7 +921,7 @@ class OpenClawCombineServer(_BaseServer):
                     self._fire_evaluation_task(session_id, prev_turn_num, prev_td, messages[-1])
 
             prompt_ids, response_ids, response_logprobs, prompt_text, response_text = \
-                self._tokenize_turn(messages, assistant_msg, tools, choice)
+                self._tokenize_turn(messages, assistant_msg, tools, choice, output=output)
 
             if not response_ids and not response_text.strip():
                 output["session_id"] = session_id
@@ -942,7 +979,7 @@ class OpenClawCombineServer(_BaseServer):
             try:
                 result = task.result()
             except Exception as e:
-                logger.warning("[Server] evaluation failed session=%s turn=%d: %s", session_id, turn_num, e)
+                logger.error("[Server] evaluation FAILED session=%s turn=%d: %s", session_id, turn_num, e, exc_info=True)
                 with self._eval_scores_lock:
                     self._eval_scores.append(0.0)
                 continue

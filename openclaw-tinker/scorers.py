@@ -262,7 +262,7 @@ async def _tinker_teacher_logprobs(
 
         return teacher_lps
     except Exception as e:
-        logger.warning("[Scorer] teacher query failed session=%s turn=%d: %s", session_id, turn_num, e)
+        logger.error("[Scorer] teacher logprob query FAILED session=%s turn=%d: %s", session_id, turn_num, e, exc_info=True)
         return [0.0] * response_len
 
 
@@ -315,7 +315,7 @@ class PRMScorer:
             )
             return parse_prm_eval_score(content), content
         except Exception as e:
-            logger.warning("[PRM] query failed (vote %d): %s", vote_id, e)
+            logger.error("[PRM] query failed (vote %d): %s", vote_id, e, exc_info=True)
             return None, ""
 
 
@@ -386,7 +386,7 @@ class OPDScorer:
             score, hint = parse_judge_result(content)
             return {"vote_id": vote_id, "score": score, "hint": hint, "raw": content}
         except Exception as e:
-            logger.warning("[OPD] judge query failed (vote %d): %s", vote_id, e)
+            logger.error("[OPD] judge query failed (vote %d): %s", vote_id, e, exc_info=True)
             return {"vote_id": vote_id, "score": None, "hint": "", "raw": ""}
 
     async def _query_eval_once(self, messages: list[dict], vote_id: int) -> tuple[Optional[int], str]:
@@ -397,7 +397,7 @@ class OPDScorer:
             )
             return parse_prm_eval_score(content), content
         except Exception as e:
-            logger.warning("[OPD] eval query failed (vote %d): %s", vote_id, e)
+            logger.error("[OPD] eval query failed (vote %d): %s", vote_id, e, exc_info=True)
             return None, ""
 
 
@@ -470,7 +470,7 @@ class CombinedScorer:
             score, hint = parse_judge_result(content)
             return {"vote_id": vote_id, "score": score, "hint": hint, "raw": content}
         except Exception as e:
-            logger.warning("[Combined] judge query failed (vote %d): %s", vote_id, e)
+            logger.error("[Combined] judge query failed (vote %d): %s", vote_id, e, exc_info=True)
             return {"vote_id": vote_id, "score": None, "hint": "", "raw": ""}
 
     async def _query_eval_once(self, messages: list[dict], vote_id: int) -> tuple[Optional[int], str]:
@@ -481,5 +481,5 @@ class CombinedScorer:
             )
             return parse_prm_eval_score(content), content
         except Exception as e:
-            logger.warning("[Combined] eval query failed (vote %d): %s", vote_id, e)
+            logger.error("[Combined] eval query failed (vote %d): %s", vote_id, e, exc_info=True)
             return None, ""

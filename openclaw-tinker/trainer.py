@@ -147,18 +147,44 @@ class Trainer:
             datums = batch_to_datums(batch, advantages, kl_penalty_coef=self.config.kl_loss_coef)
 
         if not datums:
-            logger.warning("[Trainer] empty batch, skipping step %d", step)
+            logger.error("[Trainer] EMPTY batch at step %d — all %d samples failed datum conversion, skipping", step, len(batch))
             return
 
+        if len(datums) < len(batch):
+            logger.warning("[Trainer] step %d: only %d/%d samples converted to datums", step, len(datums), len(batch))
+
+        # --- forward_backward + optim_step: run while inference continues ---
+        # Inference is NOT paused during this phase.
         logger.info("[Trainer] step %d: forward_backward (%d datums) ...", step, len(datums))
-        await self.training_client.forward_backward_async(datums, loss_fn=self.config.loss_fn)
+        try:
+            fb_future = await self.training_client.forward_backward_async(datums, loss_fn=self.config.loss_fn)
+            fb_output = await fb_future.result_async()
+            logger.info(
+                "[Trainer] step %d: forward_backward done — metrics=%s",
+                step, getattr(fb_output, "metrics", None),
+            )
+        except Exception as e:
+            logger.error("[Trainer] step %d: forward_backward FAILED: %s", step, e, exc_info=True)
+            raise
 
         logger.info("[Trainer] step %d: optim_step ...", step)
-        await self.training_client.optim_step_async(
-            tinker.AdamParams(learning_rate=self.config.learning_rate)
-        )
+        try:
+            optim_future = await self.training_client.optim_step_async(
+                tinker.AdamParams(learning_rate=self.config.learning_rate)
+            )
+            optim_output = await optim_future.result_async()
+            logger.info(
+                "[Trainer] step %d: optim_step done — metrics=%s",
+                step, getattr(optim_output, "metrics", None),
+            )
+        except Exception as e:
+            logger.error("[Trainer] step %d: optim_step FAILED: %s", step, e, exc_info=True)
+            raise
 
-        logger.info("[Trainer] step %d: saving weights ...", step)
+        # --- save weights: briefly pause inference to swap the sampling client ---
+        logger.info("[Trainer] step %d: pausing inference for weight swap ...", step)
+        self.rollout_worker.pause_submission()
+
         lora_name = f"openclaw_{method}_lora"
         try:
             self.sampling_client = await asyncio.wait_for(
@@ -166,8 +192,17 @@ class Trainer:
                 timeout=self.config.save_weights_timeout,
             )
         except asyncio.TimeoutError:
-            logger.error("[Trainer] save_weights timed out at step %d", step)
-            return
+            logger.error("[Trainer] save_weights timed out at step %d — training may be stuck", step)
+            self.rollout_worker.resume_submission()
+            raise
+        except Exception as e:
+            logger.error("[Trainer] step %d: save_weights FAILED: %s", step, e, exc_info=True)
+            self.rollout_worker.resume_submission()
+            raise
+
+        self.rollout_worker.update_sampling_client(self.sampling_client)
+        self.rollout_worker.resume_submission()
+        logger.info("[Trainer] step %d: inference resumed with updated weights", step)
 
         # Save checkpoint at configured interval and on final step
         if step % self.config.save_interval == 0 or step == self.config.max_steps:
@@ -175,9 +210,7 @@ class Trainer:
                 resolved = await self.training_client.save_state_async(name=f"step_{step:04d}")
                 logger.info("[Trainer] checkpoint saved: %s", getattr(resolved, "path", ""))
             except Exception as e:
-                logger.warning("[Trainer] save_state failed at step %d: %s", step, e)
-
-        self.rollout_worker.update_sampling_client(self.sampling_client)
+                logger.error("[Trainer] save_state FAILED at step %d: %s", step, e, exc_info=True)
 
         # Logging
         self._log_step(batch, step, method)
@@ -232,6 +265,7 @@ class Trainer:
     async def run(self):
         await self.setup()
         self.rollout_worker.start()
+        self.rollout_worker.resume_submission()
         logger.info("[Trainer] proxy starting at %s:%d (method=%s)",
                     self.config.proxy_host, self.config.proxy_port, self.config.method)
 
@@ -240,10 +274,9 @@ class Trainer:
                         step, self.config.max_steps, self.config.batch_size)
 
             self.rollout_worker.reset_eval_scores()
-            self.rollout_worker.resume_submission()
+            # Inference keeps running — we just drain completed samples
             groups = await drain_output_queue(self.config.batch_size, self.rollout_worker)
             batch = [s for group in groups for s in group]
-            self.rollout_worker.pause_submission()
 
             eval_scores = self.rollout_worker.drain_eval_scores()
             if eval_scores:
@@ -252,8 +285,8 @@ class Trainer:
                 if self._wandb:
                     self._wandb.log({"rollout/prm_eval_score": avg}, step=step)
 
+            # _train_on_batch handles pause/resume internally (only during weight swap)
             await self._train_on_batch(batch, step)
-            self.rollout_worker.resume_submission()
 
         logger.info("[Trainer] training complete (%d steps)", self.config.max_steps)
         self.cleanup()

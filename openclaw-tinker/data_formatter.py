@@ -132,8 +132,10 @@ def batch_to_datums(
         try:
             datums.append(sample_to_datum(sample, adv, kl_penalty_coef=kl_penalty_coef))
         except Exception as e:
-            logger.warning("[DataFormatter] skipping session=%s turn=%d: %s",
-                           sample.session_id, sample.turn_num, e)
+            logger.error(
+                "[DataFormatter] FAILED to convert session=%s turn=%d: %s",
+                sample.session_id, sample.turn_num, e, exc_info=True,
+            )
     return datums
 
 
@@ -190,8 +192,10 @@ def batch_to_datums_combined(
                 sample, w_opd=w_opd, w_rl=w_rl, kl_penalty_coef=kl_penalty_coef,
             ))
         except Exception as e:
-            logger.warning("[DataFormatter] skipping session=%s turn=%d: %s",
-                           sample.session_id, sample.turn_num, e)
+            logger.error(
+                "[DataFormatter] FAILED to convert combined session=%s turn=%d: %s",
+                sample.session_id, sample.turn_num, e, exc_info=True,
+            )
     return datums
 
 
