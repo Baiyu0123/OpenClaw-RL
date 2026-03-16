@@ -26,7 +26,7 @@
   <a href="https://openclaw.ai"><img src="https://img.shields.io/badge/OpenClaw-Plugin-orange?style=flat-square" alt="OpenClaw Plugin" /></a>
   <a href="https://github.com/THUDM/slime"><img src="https://img.shields.io/badge/Slime-Supported-purple?style=flat-square" alt="Slime Based" /></a>
   <a href="https://thinkingmachines.ai/tinker/"><img src="https://img.shields.io/badge/Tinker-Supported-yellow?style=flat-square" alt="Tinker Supported" /></a>
-  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-green?style=flat-square" alt="License MIT" /></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-Apache_2.0-green?style=flat-square" alt="License Apache 2.0" /></a>
 </p>
 
 <p align="center">
