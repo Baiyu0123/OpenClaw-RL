@@ -29,6 +29,29 @@ logger = logging.getLogger(__name__)
 
 _PRM_SEMAPHORE: asyncio.Semaphore | None = None
 _PRM_TOKENIZER: Any = None
+_GENERATION_PROMPT_SUFFIX: str | None = None
+
+
+def _get_generation_prompt_suffix(tokenizer) -> str:
+    """Detect suffix the model's chat template appends after 'assistant\\n'.
+
+    e.g. Qwen3.5 appends '<think>\\n', Qwen3 appends nothing.
+    """
+    global _GENERATION_PROMPT_SUFFIX
+    if _GENERATION_PROMPT_SUFFIX is not None:
+        return _GENERATION_PROMPT_SUFFIX
+    test_prompt = tokenizer.apply_chat_template(
+        [{"role": "user", "content": "test"}],
+        tokenize=False,
+        add_generation_prompt=True,
+    )
+    tag = "<|im_start|>assistant\n"
+    idx = test_prompt.rfind(tag)
+    if idx >= 0:
+        _GENERATION_PROMPT_SUFFIX = test_prompt[idx + len(tag):]
+    else:
+        _GENERATION_PROMPT_SUFFIX = ""
+    return _GENERATION_PROMPT_SUFFIX
 
 # Jinja2 template for tool-enabled conversations
 TOOL_TEMPLATE = """<|im_start|>system
@@ -436,6 +459,7 @@ async def generate(args, sample: Sample, sampling_params) -> Sample:
     # Set up the initial prompt with system prompt and tools (outside the loop)
     tool_specs = tool_registry.get_tool_specs()
     prompt = format_conversation_with_tools(prompt=sample.prompt, tools=tool_specs)
+    prompt += _get_generation_prompt_suffix(state.tokenizer)
 
     prompt_tokens_ids = state.tokenizer(prompt, add_special_tokens=False)["input_ids"]
     response = ""
