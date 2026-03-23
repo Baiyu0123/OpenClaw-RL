@@ -35,6 +35,15 @@ def _get_text_config(hf_config):
 class MegatronQwen35Bridge(MegatronModelBridge):
     """Bridge between HuggingFace Qwen3.5 and Megatron GPTModel."""
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.hf_pretrained = None
+
+    def load_weights_hf_to_megatron(self, hf_pretrained, model):
+        """Store hf_pretrained before calling parent's load method."""
+        self.hf_pretrained = hf_pretrained
+        return super().load_weights_hf_to_megatron(hf_pretrained, model)
+
     def provider_bridge(self, hf_pretrained):
         """Create a GPT ModelProvider from Qwen3.5 HF config."""
         from megatron.bridge.models.qwen.qwen_provider import Qwen3ModelProvider
@@ -84,6 +93,11 @@ class MegatronQwen35Bridge(MegatronModelBridge):
         We handle both via the passthrough linear attention mappings.
         """
         # Determine prefix: VLM uses model.language_model, text-only uses model
+        if self.hf_pretrained is None:
+            raise RuntimeError(
+                "hf_pretrained is not set. Ensure load_weights_hf_to_megatron() "
+                "is called before mapping_registry()."
+            )
         hf_config = self.hf_pretrained.config
         text_config = _get_text_config(hf_config)
         # Check if it's a VLM config (has text_config attribute)
@@ -127,47 +141,28 @@ class MegatronQwen35Bridge(MegatronModelBridge):
         for w in linear_attn_weights:
             param_mappings[f"decoder.layers.*.self_attention.{w}"] = f"{pfx}.layers.*.{w}"
 
-        # Gated attention weights (for full_attention layers that use the spec path)
-        gated_attn_weights = [
-            "self_attn.k_norm.weight",
-            "self_attn.k_proj.weight",
-            "self_attn.o_proj.weight",
-            "self_attn.q_norm.weight",
-            "self_attn.q_proj.weight",
-            "self_attn.v_proj.weight",
-        ]
-        for w in gated_attn_weights:
-            param_mappings[f"decoder.layers.*.self_attention.{w}"] = f"{pfx}.layers.*.{w}"
 
         mapping_list = []
         for megatron_param, hf_param in param_mappings.items():
-            mapping_list.append(AutoMapping(megatron_param, hf_param))
+            mapping_list.append(AutoMapping(megatron_param=megatron_param, hf_param=hf_param))
 
         # QKV mapping (for full attention layers)
         mapping_list.append(
             QKVMapping(
-                f"decoder.layers.*.self_attention.linear_qkv.weight",
-                [
-                    f"{pfx}.layers.*.self_attn.q_proj.weight",
-                    f"{pfx}.layers.*.self_attn.k_proj.weight",
-                    f"{pfx}.layers.*.self_attn.v_proj.weight",
-                ],
-                num_heads=text_config.num_attention_heads,
-                num_query_groups=text_config.num_key_value_heads,
-                head_dim=getattr(text_config, "head_dim", 256),
-                hidden_size=text_config.hidden_size,
+                megatron_param=f"decoder.layers.*.self_attention.linear_qkv.weight",
+                q=f"{pfx}.layers.*.self_attn.q_proj.weight",
+                k=f"{pfx}.layers.*.self_attn.k_proj.weight",
+                v=f"{pfx}.layers.*.self_attn.v_proj.weight",
             )
         )
 
         # Gated MLP (gate + up fused)
         mapping_list.append(
             GatedMLPMapping(
-                f"decoder.layers.*.mlp.linear_fc1.weight",
-                [
-                    f"{pfx}.layers.*.mlp.gate_proj.weight",
-                    f"{pfx}.layers.*.mlp.up_proj.weight",
-                ],
+                megatron_param=f"decoder.layers.*.mlp.linear_fc1.weight",
+                gate=f"{pfx}.layers.*.mlp.gate_proj.weight",
+                up=f"{pfx}.layers.*.mlp.up_proj.weight",
             )
         )
 
-        return MegatronMappingRegistry(mapping_list)
+        return MegatronMappingRegistry(*mapping_list)

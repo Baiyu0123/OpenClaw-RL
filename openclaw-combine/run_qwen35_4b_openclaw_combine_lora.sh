@@ -41,7 +41,7 @@ SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)"
 REPO_ROOT="$(cd -- "${SCRIPT_DIR}/.." &>/dev/null && pwd)"
 SLIME_ROOT="$(cd -- "${SCRIPT_DIR}/../slime" &>/dev/null && pwd)"
 
-HF_CKPT=${HF_CKPT:-${REPO_ROOT}/models/Qwen3.5-4B}
+HF_CKPT=${HF_CKPT:-/path/to/models/Qwen/Qwen3.5-4B}
 REF_LOAD=${REF_LOAD:-${HF_CKPT}}
 SAVE_CKPT=${SAVE_CKPT:-${REPO_ROOT}/ckpt/qwen35-4b-openclaw-combine-lora}
 PRM_MODEL_PATH=${PRM_MODEL_PATH:-${HF_CKPT}}

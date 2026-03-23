@@ -41,7 +41,7 @@ SLIME_ROOT="$(cd -- "${SCRIPT_DIR}/../slime" &>/dev/null && pwd)"
 REPO_ROOT="$(cd -- "${SCRIPT_DIR}/.." &>/dev/null && pwd)"
 source "${SLIME_ROOT}/scripts/models/qwen3.5-4B.sh"
 
-HF_CKPT=${HF_CKPT:-${REPO_ROOT}/models/Qwen3.5-4B}
+HF_CKPT=${HF_CKPT:-/path/to/models/Qwen/Qwen3.5-4B}
 REF_LOAD=${REF_LOAD:-${HF_CKPT}}
 SAVE_CKPT=${SAVE_CKPT:-${REPO_ROOT}/ckpt/qwen35-4b-openclaw-combine}
 PRM_MODEL_PATH=${PRM_MODEL_PATH:-${HF_CKPT}}
@@ -69,7 +69,7 @@ CKPT_ARGS=(
    --ref-load "${REF_LOAD}"
    --save "${SAVE_CKPT}"
    --save-interval 100
-   --rotary-base 5000000
+   --rotary-base 10000000
 )
 
 ROLLOUT_ARGS=(
