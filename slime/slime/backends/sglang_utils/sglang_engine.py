@@ -70,7 +70,10 @@ def launch_server_process(server_args: ServerArgs) -> multiprocessing.Process:
 
 
 def _launch_server_entry(server_args: ServerArgs):
-    patch_sglang_qwen35()
+    try:
+        patch_sglang_qwen35()
+    except (ImportError, ModuleNotFoundError):
+        pass
     from sglang.srt.entrypoints.http_server import launch_server
 
     launch_server(server_args)
