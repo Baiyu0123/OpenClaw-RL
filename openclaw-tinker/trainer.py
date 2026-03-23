@@ -139,11 +139,12 @@ class Trainer:
                 batch,
                 w_opd=self.config.w_opd,
                 w_rl=self.config.w_rl,
+                kl_penalty_coef=self.config.kl_loss_coef,
             )
         else:
             # RL and OPD both use scalar GRPO advantages
             advantages = compute_grpo_advantages(batch)
-            datums = batch_to_datums(batch, advantages)
+            datums = batch_to_datums(batch, advantages, kl_penalty_coef=self.config.kl_loss_coef)
 
         if not datums:
             logger.error("[Trainer] EMPTY batch at step %d — all %d samples failed datum conversion, skipping", step, len(batch))

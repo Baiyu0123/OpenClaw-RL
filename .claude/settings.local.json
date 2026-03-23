@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python3 -c \"import ray; import sglang; import megatron; print\\(''''all ok''''\\)\")",
+      "Bash(python3 -c \"import slime; print\\(''''slime ok''''\\)\")",
+      "Bash(pip show:*)",
+      "Bash(python3 -c \"import torch; print\\(''''torch'''', torch.__version__\\); import torch.cuda as c; print\\(''''CUDA available:'''', c.is_available\\(\\), ''''GPUs:'''', c.device_count\\(\\)\\)\")",
+      "Bash(conda env:*)",
+      "Bash(pip list:*)",
+      "Bash(conda run:*)",
+      "Bash(git -C /home/test6/OpenClaw-RL status)",
+      "Bash(/home/test6/OpenClaw-RL/.gitignore:*)"
+    ]
+  }
+}
