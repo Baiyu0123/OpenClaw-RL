@@ -297,9 +297,11 @@ info "等待 API 服务就绪..."
 WAIT_TIMEOUT=360   # 最多等 6 分钟
 ELAPSED=0
 while true; do
-  for url in "${HEALTH_URLS[@]}"; do
-    if curl -sf --max-time 3 "${url}" > /dev/null 2>&1; then
-      API_PORT_URL="${url%/health}"
+  for base in "http://localhost:${API_PORT}" "http://127.0.0.1:${API_PORT}" "http://${MASTER_ADDR}:${API_PORT}"; do
+    # GET /v1/chat/completions 返回 405 说明服务已就绪
+    code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 3 "${base}/v1/chat/completions" 2>/dev/null)
+    if [[ "${code}" == "405" || "${code}" == "200" ]]; then
+      API_PORT_URL="${base}"
       break 2
     fi
   done

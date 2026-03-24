@@ -86,8 +86,9 @@ def parse_args():
 
 def check_server(url: str) -> bool:
     try:
-        r = httpx.get(f"{url}/health", timeout=5)
-        return r.status_code == 200
+        # GET /v1/chat/completions 返回 405 Method Not Allowed 即表示服务就绪
+        r = httpx.get(f"{url}/v1/chat/completions", timeout=5)
+        return r.status_code in (200, 405)
     except Exception:
         return False
 
