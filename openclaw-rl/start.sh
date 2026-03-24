@@ -228,7 +228,18 @@ fi
 RUNTIME_ENV_JSON="{
   \"env_vars\": {
     \"PYTHONPATH\": \"${SCRIPT_DIR}:${SLIME_ROOT}\",
-    \"CUDA_DEVICE_MAX_CONNECTIONS\": \"1\"
+    \"CUDA_DEVICE_MAX_CONNECTIONS\": \"1\",
+    \"HOST\": \"0.0.0.0\",
+    \"PORT\": \"${API_PORT}\",
+    \"OPENCLAW_RECORD_ENABLED\": \"${RECORD_ENABLED}\",
+    \"OPENCLAW_RECORD_FILE\": \"${RECORD_FILE}\",
+    \"SERVED_MODEL_NAME\": \"qwen3-4b\",
+    \"TP\": \"${TP:-1}\",
+    \"CONTEXT_LENGTH\": \"32768\",
+    \"MEM_FRACTION_STATIC\": \"0.85\",
+    \"REASONING_PARSER\": \"qwen3\",
+    \"TOOL_CALL_PARSER\": \"${TOOL_CALL_PARSER:-qwen25}\",
+    \"PRM_M\": \"${PRM_M:-3}\"
   }
 }"
 
@@ -276,11 +287,28 @@ LOG_TAIL_PID=$!
 echo "${LOG_TAIL_PID}" > "${RESULTS_DIR}/.log_tail_pid"
 
 # ── 等待服务就绪 ──────────────────────────────────────────────
-info "等待 API 服务就绪 (http://localhost:${API_PORT}/health)..."
-WAIT_TIMEOUT=300   # 最多等 5 分钟
+# 同时检查 localhost 和实际 IP（因 conda run 可能覆盖 HOST 变量）
+HEALTH_URLS=(
+  "http://localhost:${API_PORT}/health"
+  "http://127.0.0.1:${API_PORT}/health"
+  "http://${MASTER_ADDR}:${API_PORT}/health"
+)
+info "等待 API 服务就绪..."
+WAIT_TIMEOUT=360   # 最多等 6 分钟
 ELAPSED=0
 while true; do
-  if curl -sf "http://localhost:${API_PORT}/health" > /dev/null 2>&1; then
+  for url in "${HEALTH_URLS[@]}"; do
+    if curl -sf --max-time 3 "${url}" > /dev/null 2>&1; then
+      API_PORT_URL="${url%/health}"
+      break 2
+    fi
+  done
+  # 也可通过日志判断是否就绪
+  if grep -q "your model is fired up" "${RAY_LOG_FILE}" 2>/dev/null; then
+    # 从日志里提取实际地址
+    ACTUAL_HOST=$(grep "proxy" "${RAY_LOG_FILE}" 2>/dev/null \
+      | grep -oP '(?<=proxy )[^ ]+' | tail -1 | cut -d: -f1)
+    [[ -n "${ACTUAL_HOST}" ]] && API_PORT_URL="http://${ACTUAL_HOST}:${API_PORT}"
     break
   fi
   if (( ELAPSED >= WAIT_TIMEOUT )); then
@@ -299,8 +327,8 @@ echo "╔═══════════════════════�
 echo "║   ✅  OpenClaw 已就绪，可以开始对话！           ║"
 echo "╚══════════════════════════════════════════════════╝"
 echo -e "${RESET}"
-echo -e "  API     : ${CYAN}http://localhost:${API_PORT}${RESET}"
-echo -e "  对话    : ${CYAN}conda run -n ${CONDA_ENV} python3 ${SCRIPT_DIR}/chat.py${RESET}"
+echo -e "  API     : ${CYAN}${API_PORT_URL:-http://localhost:${API_PORT}}${RESET}"
+echo -e "  对话    : ${CYAN}conda run -n ${CONDA_ENV} python3 ${SCRIPT_DIR}/chat.py --url ${API_PORT_URL:-http://localhost:${API_PORT}}${RESET}"
 echo -e "  实时日志: ${CYAN}tail -f ${RAY_LOG_FILE}${RESET}"
 echo -e "  停止    : ${CYAN}bash ${SCRIPT_DIR}/stop.sh${RESET}"
 echo ""
