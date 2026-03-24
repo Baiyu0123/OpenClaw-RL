@@ -146,7 +146,7 @@ ROLLOUT_ARGS=(
   --disable-rollout-global-dataset
   --rollout-function-path openclaw_rollout.generate_rollout_openclaw
   --num-rollout 100000000
-  --rollout-batch-size 16
+  --rollout-batch-size 4
   --n-samples-per-prompt 1
   --rollout-max-response-len 8192
   --rollout-max-context-len 32768
