@@ -41,7 +41,7 @@ SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)"
 REPO_ROOT="$(cd -- "${SCRIPT_DIR}/.." &>/dev/null && pwd)"
 SLIME_ROOT="$(cd -- "${SCRIPT_DIR}/../slime" &>/dev/null && pwd)"
 
-HF_CKPT=${HF_CKPT:-/path/to/models/Qwen/Qwen3.5-4B}
+HF_CKPT=${HF_CKPT:-${REPO_ROOT}/models/Qwen3.5-4B}
 REF_LOAD=${REF_LOAD:-${HF_CKPT}}
 SAVE_CKPT=${SAVE_CKPT:-${REPO_ROOT}/ckpt/qwen35-4b-openclaw-combine-lora}
 PRM_MODEL_PATH=${PRM_MODEL_PATH:-${HF_CKPT}}
@@ -62,6 +62,7 @@ export PRM_M="${PRM_M:-1}"
 export OPENCLAW_OPD_TEACHER_LP_MAX_CONCURRENCY="${OPENCLAW_OPD_TEACHER_LP_MAX_CONCURRENCY:-1}"
 export OPENCLAW_COMBINE_W_RL="${OPENCLAW_COMBINE_W_RL:-1.0}"
 export OPENCLAW_COMBINE_W_OPD="${OPENCLAW_COMBINE_W_OPD:-1.0}"
+export TRAIN_EPOCHS="${TRAIN_EPOCHS:-3}"
 
 CKPT_ARGS=(
    --hf-checkpoint "${HF_CKPT}"
@@ -176,7 +177,8 @@ RUNTIME_ENV_JSON="{
     \"FLASHINFER_WORKSPACE_BASE\": \"${FLASHINFER_WORKSPACE_BASE}\",
     \"OPENCLAW_EVAL_MODE\": \"${OPENCLAW_EVAL_MODE}\",
     \"OPENCLAW_COMBINE_W_RL\": \"${OPENCLAW_COMBINE_W_RL}\",
-    \"OPENCLAW_COMBINE_W_OPD\": \"${OPENCLAW_COMBINE_W_OPD}\"
+    \"OPENCLAW_COMBINE_W_OPD\": \"${OPENCLAW_COMBINE_W_OPD}\",
+    \"TRAIN_EPOCHS\": \"${TRAIN_EPOCHS}\"
   }
 }"
 
