@@ -1,10 +1,9 @@
 #!/usr/bin/env bash
 # =============================================================
-#  OpenClaw-RL  一键启动脚本
+#  OpenClaw-OPD  一键启动脚本（Top-K Distillation LoRA）
 #  用法:
-#    bash start.sh              # 用默认配置启动
-#    bash start.sh --no-lora    # 不用 LoRA（全量微调）
-#    bash start.sh --dry-run    # 只打印命令，不实际执行
+#    bash start_opd.sh           # 默认启动
+#    bash start_opd.sh --dry-run # 只打印命令，不实际执行
 # =============================================================
 set -euo pipefail
 
@@ -24,11 +23,9 @@ RESULTS_DIR="${SCRIPT_DIR}/results"
 mkdir -p "${RESULTS_DIR}"
 
 # ── 参数解析 ──────────────────────────────────────────────────
-USE_LORA=1
 DRY_RUN=0
 for arg in "$@"; do
   case "$arg" in
-    --no-lora)  USE_LORA=0 ;;
     --dry-run)  DRY_RUN=1 ;;
     *) warn "未知参数: $arg，忽略" ;;
   esac
@@ -38,7 +35,7 @@ done
 CONDA_ENV="${CONDA_ENV:-openclaw-rl}"
 HF_CKPT="${HF_CKPT:-/data/openclaw-rl/models/Qwen3-4B}"
 REF_LOAD="${REF_LOAD:-${HF_CKPT}}"
-SAVE_CKPT="${SAVE_CKPT:-/data/openclaw-rl/ckpt/qwen3-4b-openclaw-rl-lora}"
+SAVE_CKPT="${SAVE_CKPT:-/data/openclaw-rl/ckpt/qwen3-4b-openclaw-opd-topk-lora}"
 PRM_MODEL_PATH="${PRM_MODEL_PATH:-${HF_CKPT}}"
 
 NUM_GPUS="${NUM_GPUS:-4}"
@@ -50,34 +47,33 @@ API_PORT="${API_PORT:-30000}"
 MASTER_ADDR="${MASTER_ADDR:-127.0.0.1}"
 
 RECORD_ENABLED="${OPENCLAW_RECORD_ENABLED:-1}"
-RECORD_FILE="${RESULTS_DIR}/qwen3_4b_lora_record.jsonl"
+RECORD_FILE="${RESULTS_DIR}/qwen3_4b_opd_record.jsonl"
+
+TEACHER_LP_MAX_CONCURRENCY="${OPENCLAW_OPD_TEACHER_LP_MAX_CONCURRENCY:-3}"
 
 # ── Banner ────────────────────────────────────────────────────
 echo -e "${CYAN}${BOLD}"
 echo "╔═══════════════════════════════════════════════╗"
-echo "║          OpenClaw-RL  启动脚本                ║"
+echo "║       OpenClaw-OPD  启动脚本                  ║"
 echo "╚═══════════════════════════════════════════════╝"
 echo -e "${RESET}"
 info "模型路径  : ${HF_CKPT}"
 info "Checkpoint: ${SAVE_CKPT}"
 info "GPU 分配  : actor=${ACTOR_GPUS}  rollout=${ROLLOUT_GPUS}  prm=${PRM_GPUS}  total=${NUM_GPUS}"
 info "API 端口  : ${API_PORT}"
-info "LoRA      : $([ $USE_LORA -eq 1 ] && echo on || echo off)"
+info "OPD 模式  : Top-K Distillation (topk=50, lr=1e-6)"
 echo ""
 
 # ── 前置检查 ──────────────────────────────────────────────────
 [[ -d "${HF_CKPT}" ]]   || die "模型路径不存在: ${HF_CKPT}"
 [[ -d "${SLIME_ROOT}" ]] || die "slime 目录不存在: ${SLIME_ROOT}"
 
-# 检查 conda 环境是否存在
 conda env list 2>/dev/null | grep -q "^${CONDA_ENV}" \
   || die "conda 环境 '${CONDA_ENV}' 不存在，请先创建"
 
-# GPU 数量是否足够
 (( ACTOR_GPUS + ROLLOUT_GPUS + PRM_GPUS <= NUM_GPUS )) \
   || die "GPU 数量不足：actor(${ACTOR_GPUS})+rollout(${ROLLOUT_GPUS})+prm(${PRM_GPUS}) > ${NUM_GPUS}"
 
-# conda 环境里 ray/python 是否存在
 conda run -n "${CONDA_ENV}" ray --version &>/dev/null \
   || die "conda 环境 '${CONDA_ENV}' 中找不到 ray"
 
@@ -115,6 +111,7 @@ export MEM_FRACTION_STATIC="0.85"
 export REASONING_PARSER="qwen3"
 export TOOL_CALL_PARSER="${TOOL_CALL_PARSER:-qwen25}"
 export PRM_M="${PRM_M:-3}"
+export OPENCLAW_OPD_TEACHER_LP_MAX_CONCURRENCY="${TEACHER_LP_MAX_CONCURRENCY}"
 
 # ── 启动 Ray ──────────────────────────────────────────────────
 info "启动 Ray 集群..."
@@ -144,9 +141,9 @@ CKPT_ARGS=(
 
 ROLLOUT_ARGS=(
   --disable-rollout-global-dataset
-  --rollout-function-path openclaw_rollout.generate_rollout_openclaw
+  --rollout-function-path openclaw_opd_rollout.generate_rollout_openclaw_opd
   --num-rollout 100000000
-  --rollout-batch-size 16
+  --rollout-batch-size 4
   --n-samples-per-prompt 1
   --rollout-max-response-len 8192
   --rollout-max-context-len 32768
@@ -161,35 +158,31 @@ PERF_ARGS=(
   --gradient-checkpointing
 )
 
-GRPO_ARGS=(
-  --advantage-estimator grpo
+# OPD 使用 Top-K Distillation loss，不用 GRPO advantage
+OPD_ARGS=(
+  --loss-type custom_loss
+  --custom-loss-function-path topk_distillation_loss.topk_distillation_loss_function
+  --distill-topk 50
+  --disable-compute-advantages-and-returns
   --disable-rewards-normalization
-  --use-kl-loss
-  --kl-loss-coef 0.0
-  --kl-loss-type low_var_kl
   --entropy-coef 0.00
-  --eps-clip 0.2
-  --eps-clip-high 0.28
 )
 
 OPTIMIZER_ARGS=(
   --optimizer adam
-  --lr 1e-5
+  --lr 1e-6
   --lr-decay-style constant
   --weight-decay 0.1
   --adam-beta1 0.9
   --adam-beta2 0.98
 )
 
-LORA_ARGS=()
-if [[ $USE_LORA -eq 1 ]]; then
-  LORA_ARGS=(
-    --use-lora
-    --lora-rank 16
-    --lora-alpha 32
-    --lora-target-modules "q_proj,k_proj,v_proj,o_proj,gate_proj,up_proj,down_proj"
-  )
-fi
+LORA_ARGS=(
+  --use-lora
+  --lora-rank 16
+  --lora-alpha 32
+  --lora-target-modules "q_proj,k_proj,v_proj,o_proj,gate_proj,up_proj,down_proj"
+)
 
 SGLANG_ARGS=(
   --rollout-num-gpus-per-engine "${TP}"
@@ -210,8 +203,8 @@ PRM_ARGS=(
 )
 
 CUSTOM_ARGS=(
-  --custom-generate-function-path openclaw_api_server.generate
-  --custom-rm-path openclaw_api_server.reward_func
+  --custom-generate-function-path openclaw_opd_api_server.generate
+  --custom-rm-path openclaw_opd_api_server.reward_func
 )
 
 WANDB_ARGS=()
@@ -220,11 +213,13 @@ if [[ "${USE_WANDB:-1}" == "1" && -n "${WANDB_KEY_VALUE}" ]]; then
   WANDB_ARGS=(
     --use-wandb
     --wandb-project "${WANDB_PROJECT:-openclaw_rl}"
-    --wandb-group   "qwen3-4b-openclaw-rl-lora"
+    --wandb-group   "qwen3-4b-openclaw-opd-topk-lora"
     --wandb-key     "${WANDB_KEY_VALUE}"
   )
 fi
 
+# ── RUNTIME_ENV_JSON：所有 env var 必须在这里显式传入 Ray worker ──
+# 注意：conda run 会将 HOST 覆盖为架构字符串，必须在 JSON 里强制设置
 RUNTIME_ENV_JSON="{
   \"env_vars\": {
     \"PYTHONPATH\": \"${SCRIPT_DIR}:${SLIME_ROOT}\",
@@ -239,12 +234,13 @@ RUNTIME_ENV_JSON="{
     \"MEM_FRACTION_STATIC\": \"0.85\",
     \"REASONING_PARSER\": \"qwen3\",
     \"TOOL_CALL_PARSER\": \"${TOOL_CALL_PARSER:-qwen25}\",
-    \"PRM_M\": \"${PRM_M:-3}\"
+    \"PRM_M\": \"${PRM_M:-3}\",
+    \"OPENCLAW_OPD_TEACHER_LP_MAX_CONCURRENCY\": \"${TEACHER_LP_MAX_CONCURRENCY}\"
   }
 }"
 
 # ── 提交 Ray job ──────────────────────────────────────────────
-info "提交 Ray job..."
+info "提交 Ray job（OPD 模式）..."
 conda run -n "${CONDA_ENV}" \
   ray job submit \
     --address="http://127.0.0.1:8265" \
@@ -259,7 +255,7 @@ conda run -n "${CONDA_ENV}" \
     "${CKPT_ARGS[@]}" \
     "${ROLLOUT_ARGS[@]}" \
     "${OPTIMIZER_ARGS[@]}" \
-    "${GRPO_ARGS[@]}" \
+    "${OPD_ARGS[@]}" \
     "${PERF_ARGS[@]}" \
     "${SGLANG_ARGS[@]}" \
     "${WANDB_ARGS[@]}" \
@@ -274,7 +270,6 @@ JOB_ID=$(conda run -n "${CONDA_ENV}" \
   | grep -oP 'raysubmit_\w+' | tail -1)
 success "Job 已提交: ${JOB_ID}"
 
-# 把 job id 写到文件，方便 stop.sh 使用
 echo "${JOB_ID}" > "${RESULTS_DIR}/.last_job_id"
 
 # Ray 的 job driver log 就是最完整的输出，等待它出现后建软链接
@@ -287,10 +282,12 @@ for i in $(seq 1 30); do
 done
 
 if [[ -n "${DRIVER_LOG}" ]]; then
+  # 把 ray_latest.log 软链接直接指向 job driver log（真实输出）
   ln -sf "${DRIVER_LOG}" "${RESULTS_DIR}/ray_latest.log"
   success "job driver log: ${DRIVER_LOG}"
   success "软链接已更新: results/ray_latest.log -> ${DRIVER_LOG}"
   echo "${DRIVER_LOG}" > "${RESULTS_DIR}/.driver_log_path"
+  # 后台持续追加到带时间戳的副本（可选）
   (tail -F "${DRIVER_LOG}" >> "${RAY_LOG_FILE}" 2>/dev/null) &
   LOG_TAIL_PID=$!
 else
@@ -302,27 +299,18 @@ fi
 echo "${LOG_TAIL_PID}" > "${RESULTS_DIR}/.log_tail_pid"
 
 # ── 等待服务就绪 ──────────────────────────────────────────────
-# 同时检查 localhost 和实际 IP（因 conda run 可能覆盖 HOST 变量）
-HEALTH_URLS=(
-  "http://localhost:${API_PORT}/health"
-  "http://127.0.0.1:${API_PORT}/health"
-  "http://${MASTER_ADDR}:${API_PORT}/health"
-)
 info "等待 API 服务就绪..."
-WAIT_TIMEOUT=360   # 最多等 6 分钟
+WAIT_TIMEOUT=360
 ELAPSED=0
 while true; do
   for base in "http://localhost:${API_PORT}" "http://127.0.0.1:${API_PORT}" "http://${MASTER_ADDR}:${API_PORT}"; do
-    # GET /v1/chat/completions 返回 405 说明服务已就绪
     code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 3 "${base}/v1/chat/completions" 2>/dev/null) || true
     if [[ "${code}" == "405" || "${code}" == "200" ]]; then
       API_PORT_URL="${base}"
       break 2
     fi
   done
-  # 也可通过日志判断是否就绪
   if grep -q "your model is fired up" "${RAY_LOG_FILE}" 2>/dev/null; then
-    # 从日志里提取实际地址
     ACTUAL_HOST=$(grep "proxy" "${RAY_LOG_FILE}" 2>/dev/null \
       | grep -oP '(?<=proxy )[^ ]+' | tail -1 | cut -d: -f1)
     [[ -n "${ACTUAL_HOST}" ]] && API_PORT_URL="http://${ACTUAL_HOST}:${API_PORT}"
@@ -341,11 +329,12 @@ done
 echo ""
 echo -e "${GREEN}${BOLD}"
 echo "╔══════════════════════════════════════════════════╗"
-echo "║   ✅  OpenClaw 已就绪，可以开始对话！           ║"
+echo "║   ✅  OpenClaw-OPD 已就绪，可以开始对话！       ║"
 echo "╚══════════════════════════════════════════════════╝"
 echo -e "${RESET}"
 echo -e "  API     : ${CYAN}${API_PORT_URL:-http://localhost:${API_PORT}}${RESET}"
-echo -e "  对话    : ${CYAN}conda activate ${CONDA_ENV} && python3 ${SCRIPT_DIR}/chat.py --url ${API_PORT_URL:-http://localhost:${API_PORT}}${RESET}"
+echo -e "  对话    : ${CYAN}conda activate ${CONDA_ENV} && python3 $(cd "${SCRIPT_DIR}/../openclaw-rl" &>/dev/null && pwd)/chat.py --url ${API_PORT_URL:-http://localhost:${API_PORT}}${RESET}"
 echo -e "  实时日志: ${CYAN}tail -f ${RAY_LOG_FILE}${RESET}"
-echo -e "  停止    : ${CYAN}bash ${SCRIPT_DIR}/stop.sh${RESET}"
+echo -e "  OPD hint: ${CYAN}grep 'OpenClaw-OPD' ${RAY_LOG_FILE}${RESET}"
+echo -e "  停止    : ${CYAN}bash ${SCRIPT_DIR}/stop_opd.sh${RESET}"
 echo ""

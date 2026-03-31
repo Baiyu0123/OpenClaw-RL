@@ -152,6 +152,15 @@ export MASTER_ADDR=${MASTER_ADDR:-"127.0.0.1"}
 export no_proxy="127.0.0.1,${MASTER_ADDR}"
 ray start --head --node-ip-address "${MASTER_ADDR}" --num-gpus "${NUM_GPUS}" --disable-usage-stats --dashboard-host=0.0.0.0 --dashboard-port=8265
 
+# Timestamped Ray log: every run gets its own file, symlink points to latest.
+LOG_DIR="${SCRIPT_DIR}/results"
+mkdir -p "${LOG_DIR}"
+RUN_TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+RAY_LOG_FILE="${LOG_DIR}/ray_${RUN_TIMESTAMP}.log"
+RAY_LOG_LATEST="${LOG_DIR}/ray_latest.log"
+ln -sf "${RAY_LOG_FILE}" "${RAY_LOG_LATEST}"
+echo "[run] Ray log -> ${RAY_LOG_FILE}" | tee -a "${RAY_LOG_FILE}"
+
 RUNTIME_ENV_JSON="{
   \"env_vars\": {
     \"PYTHONPATH\": \"${SCRIPT_DIR}:${SLIME_ROOT}\",
@@ -159,6 +168,7 @@ RUNTIME_ENV_JSON="{
   }
 }"
 
+# Submit job; tee stdout/stderr to timestamped log while keeping console output.
 ray job submit --address="http://127.0.0.1:8265" \
    --runtime-env-json="${RUNTIME_ENV_JSON}" \
    -- python3 train_async.py \
@@ -177,4 +187,5 @@ ray job submit --address="http://127.0.0.1:8265" \
    ${WANDB_ARGS[@]} \
    ${CUSTOM_ARGS[@]} \
    ${PRM_ARGS[@]} \
-   ${LORA_ARGS[@]}
+   ${LORA_ARGS[@]} \
+   2>&1 | tee -a "${RAY_LOG_FILE}"

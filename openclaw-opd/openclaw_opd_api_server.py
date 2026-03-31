@@ -617,6 +617,7 @@ class OpenClawOPDAPIServer:
                     "accepted": False,
                     "hint": "",
                     "votes": votes,
+                    "eval_score": eval_score,
                 }
             )
             return {"accepted": False, "teacher_log_probs": None, "hint": "", "votes": votes, "eval_score": eval_score}
@@ -658,6 +659,14 @@ class OpenClawOPDAPIServer:
             votes_display,
             _RESET,
         )
+        logger.info(
+            "%s[OpenClaw-OPD] session=%s turn=%d HINT: %s%s",
+            _CYAN,
+            session_id,
+            turn_num,
+            hint,
+            _RESET,
+        )
         self._append_prm_record(
             {
                 "session_id": session_id,
@@ -666,6 +675,7 @@ class OpenClawOPDAPIServer:
                 "hint": hint,
                 "hint_len": len(hint),
                 "votes": votes,
+                "eval_score": eval_score,
                 "teacher_logprob_len": len(teacher_log_probs),
             }
         )

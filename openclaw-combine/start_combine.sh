@@ -1,14 +1,12 @@
 #!/usr/bin/env bash
 # =============================================================
-#  OpenClaw-RL  一键启动脚本
+#  OpenClaw-Combined  一键启动脚本（Binary RL + OPD, Megatron TP=4）
 #  用法:
-#    bash start.sh              # 用默认配置启动
-#    bash start.sh --no-lora    # 不用 LoRA（全量微调）
-#    bash start.sh --dry-run    # 只打印命令，不实际执行
+#    bash start_combine.sh           # 全量实验 (batch=16)
+#    bash start_combine.sh --demo    # Demo 模式 (batch=4)
 # =============================================================
 set -euo pipefail
 
-# ── 颜色 ──────────────────────────────────────────────────────
 RED='\033[31m'; GREEN='\033[32m'; YELLOW='\033[33m'
 CYAN='\033[36m'; BOLD='\033[1m'; RESET='\033[0m'
 info()    { echo -e "${CYAN}[INFO]${RESET} $*"; }
@@ -20,68 +18,79 @@ die()     { echo -e "${RED}[ERR]${RESET}  $*" >&2; exit 1; }
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)"
 REPO_ROOT="$(cd -- "${SCRIPT_DIR}/.." &>/dev/null && pwd)"
 SLIME_ROOT="${REPO_ROOT}/slime"
+MEGATRON_ROOT="${REPO_ROOT}/Megatron-LM"
 RESULTS_DIR="${SCRIPT_DIR}/results"
 mkdir -p "${RESULTS_DIR}"
 
+# ── Megatron 模型定义（上游配置） ─────────────────────────────
+source "${SLIME_ROOT}/scripts/models/qwen3-4B.sh"
+
 # ── 参数解析 ──────────────────────────────────────────────────
-USE_LORA=1
+DEMO_MODE=0
 DRY_RUN=0
 for arg in "$@"; do
   case "$arg" in
-    --no-lora)  USE_LORA=0 ;;
-    --dry-run)  DRY_RUN=1 ;;
+    --demo)    DEMO_MODE=1 ;;
+    --dry-run) DRY_RUN=1 ;;
     *) warn "未知参数: $arg，忽略" ;;
   esac
 done
 
-# ── 可配置变量（可在外部通过环境变量覆盖）────────────────────
+# ── 可配置变量 ────────────────────────────────────────────────
 CONDA_ENV="${CONDA_ENV:-openclaw-rl}"
-HF_CKPT="${HF_CKPT:-/data/openclaw-rl/models/Qwen3-4B}"
+HF_CKPT="${HF_CKPT:-/data/openclaw-rl/models/Qwen3-4B-Thinking-2507}"
 REF_LOAD="${REF_LOAD:-${HF_CKPT}}"
-SAVE_CKPT="${SAVE_CKPT:-/data/openclaw-rl/ckpt/qwen3-4b-openclaw-rl-lora}"
+SAVE_CKPT="${SAVE_CKPT:-/data/openclaw-rl/ckpt/qwen3-4b-openclaw-combine-full}"
 PRM_MODEL_PATH="${PRM_MODEL_PATH:-${HF_CKPT}}"
 
-NUM_GPUS="${NUM_GPUS:-4}"
-ACTOR_GPUS="${ACTOR_GPUS:-2}"
-ROLLOUT_GPUS="${ROLLOUT_GPUS:-1}"
-PRM_GPUS="${PRM_GPUS:-1}"
+NUM_GPUS="${NUM_GPUS:-8}"
+ACTOR_GPUS="${ACTOR_GPUS:-4}"
+ROLLOUT_GPUS="${ROLLOUT_GPUS:-2}"
+PRM_GPUS="${PRM_GPUS:-2}"
 
 API_PORT="${API_PORT:-30000}"
 MASTER_ADDR="${MASTER_ADDR:-127.0.0.1}"
 
 RECORD_ENABLED="${OPENCLAW_RECORD_ENABLED:-1}"
-RECORD_FILE="${RESULTS_DIR}/qwen3_4b_lora_record.jsonl"
+RECORD_FILE="${RESULTS_DIR}/qwen3_4b_combine_record.jsonl"
+RECORD_PRM_FILE="${RESULTS_DIR}/qwen3_4b_combine_record_prm.jsonl"
 
-# ── Banner ────────────────────────────────────────────────────
+# ── Demo vs 全量 ──────────────────────────────────────────────
+if [[ $DEMO_MODE -eq 1 ]]; then
+  ROLLOUT_BATCH_SIZE=4
+  MODE_LABEL="DEMO (batch=4)"
+else
+  ROLLOUT_BATCH_SIZE=16
+  MODE_LABEL="FULL (batch=16, paper setting)"
+fi
+
+# ── Banner ─────────────────────────────────────────────────────
 echo -e "${CYAN}${BOLD}"
-echo "╔═══════════════════════════════════════════════╗"
-echo "║          OpenClaw-RL  启动脚本                ║"
-echo "╚═══════════════════════════════════════════════╝"
+echo "╔════════════════════════════════════════════════════╗"
+echo "║  OpenClaw-Combined (RL+OPD, Megatron TP=4)        ║"
+echo "╚════════════════════════════════════════════════════╝"
 echo -e "${RESET}"
-info "模型路径  : ${HF_CKPT}"
-info "Checkpoint: ${SAVE_CKPT}"
-info "GPU 分配  : actor=${ACTOR_GPUS}  rollout=${ROLLOUT_GPUS}  prm=${PRM_GPUS}  total=${NUM_GPUS}"
-info "API 端口  : ${API_PORT}"
-info "LoRA      : $([ $USE_LORA -eq 1 ] && echo on || echo off)"
+info "模式       : ${MODE_LABEL}"
+info "模型路径   : ${HF_CKPT}"
+info "Checkpoint : ${SAVE_CKPT}"
+info "GPU 分配   : actor=${ACTOR_GPUS}  rollout=${ROLLOUT_GPUS}  prm=${PRM_GPUS}  total=${NUM_GPUS}"
+info "API 端口   : ${API_PORT}"
 echo ""
 
 # ── 前置检查 ──────────────────────────────────────────────────
 [[ -d "${HF_CKPT}" ]]   || die "模型路径不存在: ${HF_CKPT}"
 [[ -d "${SLIME_ROOT}" ]] || die "slime 目录不存在: ${SLIME_ROOT}"
 
-# 检查 conda 环境是否存在
 conda env list 2>/dev/null | grep -q "^${CONDA_ENV}" \
-  || die "conda 环境 '${CONDA_ENV}' 不存在，请先创建"
+  || die "conda 环境 '${CONDA_ENV}' 不存在"
 
-# GPU 数量是否足够
 (( ACTOR_GPUS + ROLLOUT_GPUS + PRM_GPUS <= NUM_GPUS )) \
-  || die "GPU 数量不足：actor(${ACTOR_GPUS})+rollout(${ROLLOUT_GPUS})+prm(${PRM_GPUS}) > ${NUM_GPUS}"
+  || die "GPU 不足: actor(${ACTOR_GPUS})+rollout(${ROLLOUT_GPUS})+prm(${PRM_GPUS}) > ${NUM_GPUS}"
 
-# conda 环境里 ray/python 是否存在
 conda run -n "${CONDA_ENV}" ray --version &>/dev/null \
-  || die "conda 环境 '${CONDA_ENV}' 中找不到 ray"
+  || die "conda 环境中找不到 ray"
 
-[[ $DRY_RUN -eq 1 ]] && { warn "dry-run 模式，退出（不执行）"; exit 0; }
+[[ $DRY_RUN -eq 1 ]] && { warn "dry-run 模式，退出"; exit 0; }
 
 # ── 停掉旧进程 ────────────────────────────────────────────────
 info "清理旧进程..."
@@ -104,17 +113,22 @@ export RAY_health_check_timeout_ms=30000
 export RAY_num_heartbeats_timeout=60
 export MASTER_ADDR
 export no_proxy="127.0.0.1,${MASTER_ADDR}"
-export OPENCLAW_RECORD_ENABLED="${RECORD_ENABLED}"
-export OPENCLAW_RECORD_FILE="${RECORD_FILE}"
-export SERVED_MODEL_NAME="qwen3-4b"
 export HOST="0.0.0.0"
 export PORT="${API_PORT}"
-export TP="${TP:-1}"
-export CONTEXT_LENGTH="32768"
-export MEM_FRACTION_STATIC="0.85"
+export OPENCLAW_RECORD_ENABLED="${RECORD_ENABLED}"
+export OPENCLAW_RECORD_FILE="${RECORD_FILE}"
+export OPENCLAW_RECORD_PRM_FILE="${RECORD_PRM_FILE}"
+export SERVED_MODEL_NAME="qwen3-4b"
+export TP="${TP:-2}"
+export CONTEXT_LENGTH="${CONTEXT_LENGTH:-32768}"
+export MEM_FRACTION_STATIC="0.80"
 export REASONING_PARSER="qwen3"
 export TOOL_CALL_PARSER="${TOOL_CALL_PARSER:-qwen25}"
-export PRM_M="${PRM_M:-3}"
+export PRM_M="${PRM_M:-1}"
+export OPENCLAW_OPD_TEACHER_LP_MAX_CONCURRENCY="${OPENCLAW_OPD_TEACHER_LP_MAX_CONCURRENCY:-1}"
+export OPENCLAW_COMBINE_W_RL="${OPENCLAW_COMBINE_W_RL:-1.0}"
+export OPENCLAW_COMBINE_W_OPD="${OPENCLAW_COMBINE_W_OPD:-1.0}"
+export OPENCLAW_EVAL_MODE="${OPENCLAW_EVAL_MODE:-1}"
 
 # ── 启动 Ray ──────────────────────────────────────────────────
 info "启动 Ray 集群..."
@@ -132,40 +146,56 @@ RUN_TIMESTAMP=$(date +%Y%m%d_%H%M%S)
 RAY_LOG_FILE="${RESULTS_DIR}/ray_${RUN_TIMESTAMP}.log"
 ln -sf "${RAY_LOG_FILE}" "${RESULTS_DIR}/ray_latest.log"
 info "Ray 日志  : ${RAY_LOG_FILE}"
-info "          (软链接 -> results/ray_latest.log)"
 
 # ── 构建参数 ──────────────────────────────────────────────────
 CKPT_ARGS=(
+  --megatron-to-hf-mode bridge
   --hf-checkpoint "${HF_CKPT}"
   --ref-load      "${REF_LOAD}"
   --save          "${SAVE_CKPT}"
   --save-interval 1
+  --rotary-base 5000000
 )
 
 ROLLOUT_ARGS=(
   --disable-rollout-global-dataset
-  --rollout-function-path openclaw_rollout.generate_rollout_openclaw
+  --rollout-function-path openclaw_combine_rollout.generate_rollout_openclaw_combine
   --num-rollout 100000000
-  --rollout-batch-size 16
+  --rollout-batch-size "${ROLLOUT_BATCH_SIZE}"
   --n-samples-per-prompt 1
   --rollout-max-response-len 8192
   --rollout-max-context-len 32768
-  --rollout-temperature 0.6
+  --rollout-temperature 1.0
   --reward-key score
   --num-steps-per-rollout 1
 )
 
 PERF_ARGS=(
+  --tensor-model-parallel-size 4
+  --sequence-parallel
+  --pipeline-model-parallel-size 1
+  --context-parallel-size 1
+  --expert-model-parallel-size 1
+  --expert-tensor-parallel-size 1
+
+  --recompute-granularity full
+  --recompute-method uniform
+  --recompute-num-layers 1
+
   --use-dynamic-batch-size
-  --max-tokens-per-gpu "${MAX_TOKENS_PER_GPU:-8192}"
-  --gradient-checkpointing
+  --max-tokens-per-gpu "${MAX_TOKENS_PER_GPU:-32768}"
+  --log-probs-chunk-size 1024
 )
 
-GRPO_ARGS=(
+# Combined: Binary RL (GRPO) + OPD (teacher distillation), same as paper §5.1.1
+# LR=1e-5, KL=0 as per paper
+COMBINE_ARGS=(
   --advantage-estimator grpo
   --disable-rewards-normalization
+  --loss-type custom_loss
+  --custom-loss-function-path combine_loss.combine_loss_function
   --use-kl-loss
-  --kl-loss-coef 0.0
+  --kl-loss-coef 0.01
   --kl-loss-type low_var_kl
   --entropy-coef 0.00
   --eps-clip 0.2
@@ -179,22 +209,23 @@ OPTIMIZER_ARGS=(
   --weight-decay 0.1
   --adam-beta1 0.9
   --adam-beta2 0.98
+  --optimizer-cpu-offload
+  --overlap-cpu-optimizer-d2h-h2d
+  --use-precision-aware-optimizer
 )
 
-LORA_ARGS=()
-if [[ $USE_LORA -eq 1 ]]; then
-  LORA_ARGS=(
-    --use-lora
-    --lora-rank 16
-    --lora-alpha 32
-    --lora-target-modules "q_proj,k_proj,v_proj,o_proj,gate_proj,up_proj,down_proj"
-  )
-fi
+MISC_ARGS=(
+  --attention-dropout 0.0
+  --hidden-dropout 0.0
+  --accumulate-allreduce-grads-in-fp32
+  --attention-softmax-in-fp32
+  --attention-backend flash
+)
 
 SGLANG_ARGS=(
-  --rollout-num-gpus-per-engine "${TP}"
+  --rollout-num-gpus-per-engine 2
   --sglang-tool-call-parser "${TOOL_CALL_PARSER}"
-  --sglang-mem-fraction-static 0.85
+  --sglang-mem-fraction-static 0.80
   --sglang-context-length 32768
   --sglang-reasoning-parser qwen3
 )
@@ -202,16 +233,16 @@ SGLANG_ARGS=(
 PRM_ARGS=(
   --prm-enable
   --prm-num-gpus "${PRM_GPUS}"
-  --prm-num-gpus-per-engine "${PRM_TP:-${TP}}"
+  --prm-num-gpus-per-engine 2
   --prm-model-path "${PRM_MODEL_PATH}"
   --prm-m "${PRM_M}"
   --prm-temperature "${PRM_TEMPERATURE:-0.6}"
-  --prm-max-new-tokens "${PRM_MAX_NEW_TOKENS:-4096}"
+  --prm-max-new-tokens "${PRM_MAX_NEW_TOKENS:-8192}"
 )
 
 CUSTOM_ARGS=(
-  --custom-generate-function-path openclaw_api_server.generate
-  --custom-rm-path openclaw_api_server.reward_func
+  --custom-generate-function-path openclaw_combine_api_server.generate
+  --custom-rm-path openclaw_combine_api_server.reward_func
 )
 
 WANDB_ARGS=()
@@ -220,52 +251,58 @@ if [[ "${USE_WANDB:-1}" == "1" && -n "${WANDB_KEY_VALUE}" ]]; then
   WANDB_ARGS=(
     --use-wandb
     --wandb-project "${WANDB_PROJECT:-openclaw_rl}"
-    --wandb-group   "qwen3-4b-openclaw-rl-lora"
+    --wandb-group   "qwen3-4b-combine-full-sysprompt"
     --wandb-key     "${WANDB_KEY_VALUE}"
   )
 fi
 
+# ── RUNTIME_ENV_JSON：所有 env var 必须在这里传入 Ray worker ──
+# 注意：openclaw-combine 依赖 openclaw-opd 的基类，PYTHONPATH 必须包含两个目录
 RUNTIME_ENV_JSON="{
   \"env_vars\": {
-    \"PYTHONPATH\": \"${SCRIPT_DIR}:${SLIME_ROOT}\",
+    \"PYTHONPATH\": \"${MEGATRON_ROOT}:${SCRIPT_DIR}:${SCRIPT_DIR}/../openclaw-opd:${SLIME_ROOT}\",
     \"CUDA_DEVICE_MAX_CONNECTIONS\": \"1\",
     \"HOST\": \"0.0.0.0\",
     \"PORT\": \"${API_PORT}\",
     \"OPENCLAW_RECORD_ENABLED\": \"${RECORD_ENABLED}\",
     \"OPENCLAW_RECORD_FILE\": \"${RECORD_FILE}\",
     \"SERVED_MODEL_NAME\": \"qwen3-4b\",
-    \"TP\": \"${TP:-1}\",
-    \"CONTEXT_LENGTH\": \"32768\",
-    \"MEM_FRACTION_STATIC\": \"0.85\",
+    \"TP\": \"${TP}\",
+    \"CONTEXT_LENGTH\": \"${CONTEXT_LENGTH}\",
+    \"MEM_FRACTION_STATIC\": \"0.80\",
     \"REASONING_PARSER\": \"qwen3\",
     \"TOOL_CALL_PARSER\": \"${TOOL_CALL_PARSER:-qwen25}\",
-    \"PRM_M\": \"${PRM_M:-3}\"
+    \"PRM_M\": \"${PRM_M:-1}\",
+    \"OPENCLAW_OPD_TEACHER_LP_MAX_CONCURRENCY\": \"${OPENCLAW_OPD_TEACHER_LP_MAX_CONCURRENCY:-1}\",
+    \"OPENCLAW_COMBINE_W_RL\": \"${OPENCLAW_COMBINE_W_RL:-1.0}\",
+    \"OPENCLAW_COMBINE_W_OPD\": \"${OPENCLAW_COMBINE_W_OPD:-1.0}\",
+    \"OPENCLAW_EVAL_MODE\": \"${OPENCLAW_EVAL_MODE:-1}\"
   }
 }"
 
 # ── 提交 Ray job ──────────────────────────────────────────────
-info "提交 Ray job..."
+info "提交 Ray job（Combined RL+OPD 模式，batch=${ROLLOUT_BATCH_SIZE}）..."
 conda run -n "${CONDA_ENV}" \
   ray job submit \
     --address="http://127.0.0.1:8265" \
     --runtime-env-json="${RUNTIME_ENV_JSON}" \
     --no-wait \
     -- python3 "${SLIME_ROOT}/train_async.py" \
-    --train-backend fsdp \
     --actor-num-nodes 1 \
     --actor-num-gpus-per-node "${ACTOR_GPUS}" \
     --rollout-num-gpus "${ROLLOUT_GPUS}" \
     --num-gpus-per-node "${NUM_GPUS}" \
+    "${MODEL_ARGS[@]}" \
     "${CKPT_ARGS[@]}" \
     "${ROLLOUT_ARGS[@]}" \
     "${OPTIMIZER_ARGS[@]}" \
-    "${GRPO_ARGS[@]}" \
+    "${COMBINE_ARGS[@]}" \
     "${PERF_ARGS[@]}" \
     "${SGLANG_ARGS[@]}" \
+    "${MISC_ARGS[@]}" \
     "${WANDB_ARGS[@]}" \
     "${CUSTOM_ARGS[@]}" \
     "${PRM_ARGS[@]}" \
-    "${LORA_ARGS[@]}" \
   2>&1 | tee -a "${RAY_LOG_FILE}"
 
 # 拿到 job id
@@ -273,12 +310,10 @@ JOB_ID=$(conda run -n "${CONDA_ENV}" \
   ray job list 2>/dev/null \
   | grep -oP 'raysubmit_\w+' | tail -1)
 success "Job 已提交: ${JOB_ID}"
-
-# 把 job id 写到文件，方便 stop.sh 使用
 echo "${JOB_ID}" > "${RESULTS_DIR}/.last_job_id"
 
-# Ray 的 job driver log 就是最完整的输出，等待它出现后建软链接
-info "等待 job driver log 文件出现..."
+# 等待 job driver log 出现后建软链接（真实输出）
+info "等待 job driver log..."
 DRIVER_LOG=""
 for i in $(seq 1 30); do
   DRIVER_LOG=$(ls /tmp/ray/session_latest/logs/job-driver-${JOB_ID}.log 2>/dev/null || true)
@@ -288,49 +323,38 @@ done
 
 if [[ -n "${DRIVER_LOG}" ]]; then
   ln -sf "${DRIVER_LOG}" "${RESULTS_DIR}/ray_latest.log"
-  success "job driver log: ${DRIVER_LOG}"
-  success "软链接已更新: results/ray_latest.log -> ${DRIVER_LOG}"
+  success "日志软链接: results/ray_latest.log -> ${DRIVER_LOG}"
   echo "${DRIVER_LOG}" > "${RESULTS_DIR}/.driver_log_path"
   (tail -F "${DRIVER_LOG}" >> "${RAY_LOG_FILE}" 2>/dev/null) &
   LOG_TAIL_PID=$!
 else
-  warn "未找到 job driver log，回退到 ray job logs --follow"
+  warn "未找到 driver log，回退到 ray job logs --follow"
   (conda run -n "${CONDA_ENV}" ray job logs --follow "${JOB_ID}" 2>/dev/null \
     | tee -a "${RAY_LOG_FILE}" > /dev/null) &
   LOG_TAIL_PID=$!
 fi
 echo "${LOG_TAIL_PID}" > "${RESULTS_DIR}/.log_tail_pid"
 
-# ── 等待服务就绪 ──────────────────────────────────────────────
-# 同时检查 localhost 和实际 IP（因 conda run 可能覆盖 HOST 变量）
-HEALTH_URLS=(
-  "http://localhost:${API_PORT}/health"
-  "http://127.0.0.1:${API_PORT}/health"
-  "http://${MASTER_ADDR}:${API_PORT}/health"
-)
-info "等待 API 服务就绪..."
-WAIT_TIMEOUT=360   # 最多等 6 分钟
+# ── 等待 API 就绪 ──────────────────────────────────────────────
+info "等待 API 服务就绪（最长 360s）..."
+WAIT_TIMEOUT=360
 ELAPSED=0
+API_PORT_URL=""
 while true; do
   for base in "http://localhost:${API_PORT}" "http://127.0.0.1:${API_PORT}" "http://${MASTER_ADDR}:${API_PORT}"; do
-    # GET /v1/chat/completions 返回 405 说明服务已就绪
     code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 3 "${base}/v1/chat/completions" 2>/dev/null) || true
     if [[ "${code}" == "405" || "${code}" == "200" ]]; then
       API_PORT_URL="${base}"
       break 2
     fi
   done
-  # 也可通过日志判断是否就绪
-  if grep -q "your model is fired up" "${RAY_LOG_FILE}" 2>/dev/null; then
-    # 从日志里提取实际地址
-    ACTUAL_HOST=$(grep "proxy" "${RAY_LOG_FILE}" 2>/dev/null \
-      | grep -oP '(?<=proxy )[^ ]+' | tail -1 | cut -d: -f1)
-    [[ -n "${ACTUAL_HOST}" ]] && API_PORT_URL="http://${ACTUAL_HOST}:${API_PORT}"
+  if grep -q "your model is fired up" "${RESULTS_DIR}/ray_latest.log" 2>/dev/null; then
+    [[ -z "${API_PORT_URL}" ]] && API_PORT_URL="http://localhost:${API_PORT}"
     break
   fi
   if (( ELAPSED >= WAIT_TIMEOUT )); then
-    warn "超时 ${WAIT_TIMEOUT}s，服务可能还在加载，请手动确认"
-    warn "  tail -f ${RAY_LOG_FILE}"
+    warn "超时 ${WAIT_TIMEOUT}s，请手动确认："
+    warn "  tail -f ${RESULTS_DIR}/ray_latest.log"
     break
   fi
   sleep 5
@@ -340,12 +364,22 @@ done
 
 echo ""
 echo -e "${GREEN}${BOLD}"
-echo "╔══════════════════════════════════════════════════╗"
-echo "║   ✅  OpenClaw 已就绪，可以开始对话！           ║"
-echo "╚══════════════════════════════════════════════════╝"
+echo "╔══════════════════════════════════════════════════════╗"
+echo "║   ✅  OpenClaw-Combined 已就绪，可以开始实验！      ║"
+echo "╚══════════════════════════════════════════════════════╝"
 echo -e "${RESET}"
-echo -e "  API     : ${CYAN}${API_PORT_URL:-http://localhost:${API_PORT}}${RESET}"
-echo -e "  对话    : ${CYAN}conda activate ${CONDA_ENV} && python3 ${SCRIPT_DIR}/chat.py --url ${API_PORT_URL:-http://localhost:${API_PORT}}${RESET}"
-echo -e "  实时日志: ${CYAN}tail -f ${RAY_LOG_FILE}${RESET}"
-echo -e "  停止    : ${CYAN}bash ${SCRIPT_DIR}/stop.sh${RESET}"
+API_URL="${API_PORT_URL:-http://localhost:${API_PORT}}"
+echo -e "  模式      : ${CYAN}${MODE_LABEL}${RESET}"
+echo -e "  API       : ${CYAN}${API_URL}${RESET}"
+echo -e "  记录文件  : ${CYAN}${RECORD_FILE}${RESET}"
+echo -e "  PRM 记录  : ${CYAN}${RECORD_PRM_FILE}${RESET}"
+echo -e "  实时日志  : ${CYAN}tail -f ${RESULTS_DIR}/ray_latest.log${RESET}"
+echo -e "  OPD hint  : ${CYAN}grep 'OpenClaw-OPD' ${RESULTS_DIR}/ray_latest.log${RESET}"
+echo -e "  停止      : ${CYAN}bash ${SCRIPT_DIR}/stop_combine.sh${RESET}"
+echo ""
+echo -e "  实验脚本  :"
+echo -e "    conda activate openclaw-rl"
+echo -e "    cd ${REPO_ROOT}/experiment"
+echo -e "    python3 evaluate.py --tag baseline          # 先跑基准"
+echo -e "    python3 train.py${DEMO_MODE:+ --demo}                     # 训练（含中间评估）"
 echo ""

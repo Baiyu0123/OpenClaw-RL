@@ -239,6 +239,18 @@ class OpenClawAPIServer:
             open(self._prm_record_file, "w").close()
             logger.info("[OpenClaw] PRM record file initialized (cleared): %s", self._prm_record_file)
 
+        # Persistent history file: appends across all rollouts, never purged.
+        # Defaults to <record_file_dir>/history.jsonl when record file is set.
+        _default_history = ""
+        if self._record_file:
+            _default_history = os.path.join(os.path.dirname(self._record_file), "history.jsonl")
+        self._history_file = os.getenv("OPENCLAW_HISTORY_FILE", _default_history)
+        if self._history_file:
+            os.makedirs(os.path.dirname(self._history_file), exist_ok=True)
+            with open(self._history_file, "a", encoding="utf-8") as f:
+                f.write(json.dumps({"event": "server_start", "timestamp": time.strftime("%Y-%m-%d %H:%M:%S")}, ensure_ascii=False) + "\n")
+            logger.info("[OpenClaw] persistent history file: %s", self._history_file)
+
         self._server: uvicorn.Server | None = None
         self._thread: threading.Thread | None = None
         self.app = self._build_app()
@@ -314,6 +326,12 @@ class OpenClawAPIServer:
                     f.write(json.dumps(rec, ensure_ascii=False) + "\n")
             except OSError as e:
                 logger.warning("[OpenClaw] failed to write record: %s", e)
+        if self._history_file:
+            try:
+                with open(self._history_file, "a", encoding="utf-8") as f:
+                    f.write(json.dumps(rec, ensure_ascii=False) + "\n")
+            except OSError as e:
+                logger.warning("[OpenClaw] failed to write history: %s", e)
 
     def _buffer_record(self, session_id: str, turn_num: int, messages: list,
                        prompt_text: str, response_text: str, tool_calls: list):
@@ -346,6 +364,14 @@ class OpenClawAPIServer:
                 f.write(json.dumps(rec, ensure_ascii=False) + "\n")
         except OSError as e:
             logger.warning("[OpenClaw] failed to write PRM record: %s", e)
+        if self._history_file:
+            try:
+                prm_rec = {"event": "prm_score", "session_id": session_id, "turn": turn_num,
+                           "score": score, "votes": votes}
+                with open(self._history_file, "a", encoding="utf-8") as f:
+                    f.write(json.dumps(prm_rec, ensure_ascii=False) + "\n")
+            except OSError as e:
+                logger.warning("[OpenClaw] failed to write PRM history: %s", e)
 
     def drain_eval_scores(self) -> list[float]:
         with self._eval_scores_lock:
@@ -359,7 +385,8 @@ class OpenClawAPIServer:
 
     # ---------------------------------------------------- record purge
     def purge_record_files(self):
-        """Clear all record JSONL files. Called when training starts."""
+        """Clear per-rollout record JSONL files. Called when training starts.
+        NOTE: _history_file is intentionally NOT purged here."""
         for path, label in [
             (self._record_file, "record"),
             (self._prm_record_file, "PRM record"),
@@ -371,6 +398,13 @@ class OpenClawAPIServer:
                 logger.info("[OpenClaw] %s file purged: %s", label, path)
             except OSError as e:
                 logger.warning("[OpenClaw] failed to purge %s file: %s", label, e)
+        # Write a rollout-boundary marker into the persistent history.
+        if self._history_file:
+            try:
+                with open(self._history_file, "a", encoding="utf-8") as f:
+                    f.write(json.dumps({"event": "rollout_boundary", "timestamp": time.strftime("%Y-%m-%d %H:%M:%S")}, ensure_ascii=False) + "\n")
+            except OSError:
+                pass
 
     # ---------------------------------------------------- PRM scoring
     async def _query_prm_once(self, judge_prompt: str, vote_id: int) -> tuple[int | None, str]:
