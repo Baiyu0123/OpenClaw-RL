@@ -154,7 +154,7 @@ CKPT_ARGS=(
   --ref-load      "${REF_LOAD}"
   --save          "${SAVE_CKPT}"
   --save-interval 1
-  --rotary-base 5000000
+  --rotary-base "${ROTARY_BASE:-5000000}"
 )
 
 ROLLOUT_ARGS=(
@@ -183,7 +183,7 @@ PERF_ARGS=(
   --recompute-num-layers 1
 
   --use-dynamic-batch-size
-  --max-tokens-per-gpu "${MAX_TOKENS_PER_GPU:-32768}"
+  --max-tokens-per-gpu "${MAX_TOKENS_PER_GPU:-8192}"
   --log-probs-chunk-size 1024
 )
 
